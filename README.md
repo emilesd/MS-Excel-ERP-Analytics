@@ -9,7 +9,7 @@ Hello, Nanda.
 I'd like to contact you via email.
 Please contact me here. `emilesonneveld617@gmail.com`
 Actually freealncer detects our chatting so I can't share contact info with you inside of platform.
-Please avoid to leave the message regarding this, just send me message if you don't mind.
+Please avoid to leave the message regarding this, just email me if you don't mind.
 thanks
 
 ---
