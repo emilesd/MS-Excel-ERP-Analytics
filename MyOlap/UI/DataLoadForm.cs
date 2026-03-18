@@ -29,6 +29,7 @@ public class DataLoadForm : Form
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
+        AutoScaleMode = AutoScaleMode.Dpi;
 
         var lblFile = new Label { Text = "Data File:", Left = 12, Top = 14, Width = 70 };
         _txtFile = new TextBox { Left = 85, Top = 12, Width = 400, ReadOnly = true };

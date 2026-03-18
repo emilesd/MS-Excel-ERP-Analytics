@@ -30,6 +30,7 @@ public class MemberPickerForm : Form
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
+        AutoScaleMode = AutoScaleMode.Dpi;
 
         var lblDim = new Label { Text = "Dimension:", Left = 12, Top = 12, Width = 80 };
         _cbDimension = new ComboBox

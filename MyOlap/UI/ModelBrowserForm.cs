@@ -27,6 +27,7 @@ public class ModelBrowserForm : Form
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
+        AutoScaleMode = AutoScaleMode.Dpi;
 
         var label = new Label
         {

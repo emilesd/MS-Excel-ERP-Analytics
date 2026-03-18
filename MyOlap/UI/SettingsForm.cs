@@ -24,11 +24,12 @@ public class SettingsForm : Form
         Settings = current;
         Text = "MyOlap – Settings";
         Width = 360;
-        Height = 240;
+        Height = 260;
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
+        AutoScaleMode = AutoScaleMode.Dpi;
 
         _chkOmitRows = new CheckBox
         {

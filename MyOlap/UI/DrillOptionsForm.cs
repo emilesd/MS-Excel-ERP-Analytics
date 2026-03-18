@@ -14,11 +14,12 @@ public class DrillOptionsForm : Form
     public DrillOptionsForm()
     {
         Text = "Drill Down Options";
-        Width = 300;
-        Height = 200;
+        Width = 320;
+        Height = 220;
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
+        AutoScaleMode = AutoScaleMode.Dpi;
         MinimizeBox = false;
 
         var rb1 = new RadioButton

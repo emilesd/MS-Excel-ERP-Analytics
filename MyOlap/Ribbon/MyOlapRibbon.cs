@@ -482,15 +482,16 @@ public class MyOlapRibbon : ExcelRibbon
     {
         var form = new Form
         {
-            Text = title, Width = 350, Height = 150,
+            Text = title, Width = 400, Height = 200,
             FormBorderStyle = FormBorderStyle.FixedDialog,
             StartPosition = FormStartPosition.CenterParent,
-            MaximizeBox = false, MinimizeBox = false
+            MaximizeBox = false, MinimizeBox = false,
+            AutoScaleMode = AutoScaleMode.Dpi
         };
-        var lbl = new Label { Text = prompt, Left = 12, Top = 12, Width = 300 };
-        var txt = new TextBox { Left = 12, Top = 36, Width = 300 };
-        var ok = new Button { Text = "OK", Left = 150, Top = 70, Width = 75, DialogResult = DialogResult.OK };
-        var cancel = new Button { Text = "Cancel", Left = 235, Top = 70, Width = 75, DialogResult = DialogResult.Cancel };
+        var lbl = new Label { Text = prompt, Left = 16, Top = 16, Width = 340 };
+        var txt = new TextBox { Left = 16, Top = 46, Width = 340 };
+        var ok = new Button { Text = "OK", Left = 180, Top = 90, Width = 85, Height = 32, DialogResult = DialogResult.OK };
+        var cancel = new Button { Text = "Cancel", Left = 275, Top = 90, Width = 85, Height = 32, DialogResult = DialogResult.Cancel };
         form.Controls.AddRange(new Control[] { lbl, txt, ok, cancel });
         form.AcceptButton = ok;
         form.CancelButton = cancel;
