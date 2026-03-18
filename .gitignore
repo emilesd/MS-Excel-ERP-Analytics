@@ -1,0 +1,29 @@
+# Build output
+bin/
+obj/
+publish/
+
+# IDE
+.vs/
+*.user
+*.suo
+
+# NuGet
+packages/
+
+# Database files (generated at runtime)
+*.db
+*.db-shm
+*.db-wal
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Generated test PDFs
+TestData/*.pdf
+
+# Private/sensitive files
+JobPostAndChattinglog.txt
+MyOlap - Product Notes v1.2.pdf

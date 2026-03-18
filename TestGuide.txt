@@ -1,0 +1,507 @@
+================================================================================
+                    MyOlap v2.2 - Test Guide
+                    ========================
+                    Excel OLAP Add-in Prototype
+================================================================================
+
+TABLE OF CONTENTS
+-----------------
+  A. Prerequisites
+  B. Installation
+  C. Quick Launch
+  D. Test Scenarios (Step by Step)
+      Test 1: Create a New Model
+      Test 2: Add Custom Dimensions & Members
+      Test 3: Load Sample Data from CSV
+      Test 4: View the OLAP Grid
+      Test 5: Drill Down on a Member
+      Test 6: Drill Up
+      Test 7: Swap Row/Col (Pivot)
+      Test 8: Keep Selected / Remove Selected
+      Test 9: Undo Last
+      Test 10: Pick Member (Change Slice)
+      Test 11: Export to PDF
+      Test 12: Settings
+      Test 13: Open an Existing Model
+  E. Troubleshooting
+  F. File Locations
+
+
+================================================================================
+A. PREREQUISITES
+================================================================================
+
+1. Windows 10 or later (64-bit)
+2. Microsoft Excel 2016 or later (64-bit)
+   - To check: File > Account > About Excel - look for "64-bit"
+3. .NET 8.0 Desktop Runtime (x64)
+   - Download: https://dotnet.microsoft.com/en-us/download/dotnet/8.0
+   - Install the ".NET Desktop Runtime 8.0.x" (x64) version
+   - After installing, open Command Prompt and type: dotnet --list-runtimes
+     You should see "Microsoft.WindowsDesktop.App 8.0.x"
+
+
+================================================================================
+B. INSTALLATION
+================================================================================
+
+The add-in files are pre-built in:
+   C:\Users\<username>\AppData\Local\MyOlap\
+
+This folder contains:
+   - MyOlap-AddIn64.xll     (the Excel add-in loader)
+   - MyOlap.dll              (main add-in code)
+   - e_sqlite3.dll           (SQLite database engine)
+   - Various dependency DLLs
+
+If you need to reinstall, run this from the project folder:
+   1. Open PowerShell as Administrator
+   2. Navigate to: c:\Emile\Nanda\Nanda\first\MyOlap
+   3. Run: dotnet build -c Release
+   4. Copy all files from bin\Release\net8.0-windows\ to:
+      %LOCALAPPDATA%\MyOlap\
+
+
+================================================================================
+C. QUICK LAUNCH
+================================================================================
+
+RECOMMENDED: Double-click the launcher script:
+
+   c:\Emile\Nanda\Nanda\first\LaunchMyOlap.bat
+
+This script will:
+   1. Close any running Excel instances
+   2. Clear Excel's add-in cache (prevents stale versions)
+   3. Register the add-in for auto-loading
+   4. Open Excel
+
+After Excel opens, look for the "MyOlap v2.2" tab in the ribbon.
+If you see it, the add-in is loaded correctly.
+
+ALTERNATIVE: Manual loading
+   1. Open Excel
+   2. Go to File > Options > Add-ins
+   3. At the bottom, select "Excel Add-ins" and click "Go..."
+   4. Click "Browse..."
+   5. Navigate to: %LOCALAPPDATA%\MyOlap\
+   6. Select: MyOlap-AddIn64.xll
+   7. Click OK
+   8. The "MyOlap v2.2" tab should appear in the ribbon
+
+
+================================================================================
+D. TEST SCENARIOS
+================================================================================
+
+--------------------------------------------------------------------------------
+TEST 1: Create a New Model
+--------------------------------------------------------------------------------
+Purpose: Verify that a new OLAP model can be created.
+
+Steps:
+   1. Launch Excel using LaunchMyOlap.bat
+   2. Verify "MyOlap v2.2" tab is visible in the ribbon
+   3. Click the "MyOlap v2.2" tab
+   4. Click "Select Model" (large button with database icon)
+   5. A "Model Browser" dialog appears showing existing models (if any)
+   6. Click "New Model..." button at the bottom
+   7. A prompt asks for a model name - type: Sales Analysis
+   8. Click OK
+
+Expected Result:
+   - Cell A1 shows: "Model 'Sales Analysis' is ready."
+   - Cell A2 shows: "Use Manage Model to add dimensions/members, then
+     Refresh Data."
+   - No error messages
+
+What this confirms:
+   - SQLite database connection works
+   - Model creation works
+   - Default dimensions (View, Year, Period, Version, Measure) are created
+   - Grid rendering to Excel sheet works
+
+
+--------------------------------------------------------------------------------
+TEST 2: Add Custom Dimensions & Members
+--------------------------------------------------------------------------------
+Purpose: Verify dimension/member management works.
+
+Steps:
+   1. After Test 1, the "Sales Analysis" model should be active
+   2. Click "Manage Model" in the Admin group
+   3. A "Manage Structure" dialog opens showing existing dimensions:
+      - View (System), Year (System), Period (System), 
+        Version (System), Measure (System)
+   
+   ADD A NEW DIMENSION:
+   4. Click "Add Dimension"
+   5. Enter name: Product
+   6. Click OK
+   7. "Product" appears in the dimensions list
+   
+   ADD MEMBERS TO PRODUCT:
+   8. Select "Product" in the dimensions list
+   9. Click "Add Member"
+   10. Enter name: Electronics, Description: Electronic products
+   11. Click OK
+   12. Click "Add Member" again
+   13. Enter name: Clothing, Description: Clothing products
+   14. Click OK
+   
+   ADD ANOTHER DIMENSION:
+   15. Click "Add Dimension"
+   16. Enter name: Region
+   17. Click OK
+   
+   ADD MEMBERS TO REGION:
+   18. Select "Region" in the dimensions list
+   19. Click "Add Member", name: North America, click OK
+   20. Click "Add Member", name: Europe, click OK
+   21. Click "Add Member", name: Asia, click OK
+   
+   ADD MEASURE MEMBERS:
+   22. Select "Measure" in the dimensions list
+   23. Click "Add Member", name: Revenue, click OK
+   24. Click "Add Member", name: COGS, click OK
+   25. Click "Add Member", name: Profit, click OK
+   
+   26. Close the Manage Structure dialog
+
+Expected Result:
+   - All dimensions and members are created without errors
+   - You can see them listed in the dialog
+
+What this confirms:
+   - Dimension creation works (up to 12 supported)
+   - Member creation with parent-child hierarchy support
+   - Database persistence works
+
+
+--------------------------------------------------------------------------------
+TEST 3: Load Sample Data from CSV
+--------------------------------------------------------------------------------
+Purpose: Verify data loading from external files.
+
+Steps:
+   1. After Test 2, click "Load Data" in the Admin group
+   2. A "Data Load" dialog opens
+   3. Click "Browse..." to select a data file
+   4. Navigate to: c:\Emile\Nanda\Nanda\first\TestData\SampleData.csv
+   5. Select the file and click Open
+   6. The dialog shows column mapping options
+   7. Map the CSV columns to your model dimensions:
+      - Column "View" -> View dimension
+      - Column "Year" -> Year dimension  
+      - Column "Time" -> Period dimension
+      - Column "Version" -> Version dimension
+      - Column "Product" -> Product dimension
+      - Column "Region" -> Region dimension
+      - Column "Measure" -> Measure dimension
+      - Column "Value" -> (numeric value column)
+   8. Click "Load" to import the data
+   9. Wait for the confirmation message
+
+Expected Result:
+   - Data loads successfully
+   - A confirmation message shows the number of records loaded
+   - The sample file has 62 rows of data covering:
+     * 3 View members (Actual, Budget, Forecast)
+     * 2 Products (Electronics, Clothing)
+     * 3 Regions (North America, Europe, Asia)
+     * 3 Measures (Revenue, COGS, Profit)
+     * 2 Time periods (Q1, Q2)
+
+What this confirms:
+   - CSV file parsing works (also supports .xlsx, .xls, .txt)
+   - Column-to-dimension mapping works
+   - Auto-creation of missing members during load
+   - Bulk data insertion into SQLite
+
+
+--------------------------------------------------------------------------------
+TEST 4: View the OLAP Grid
+--------------------------------------------------------------------------------
+Purpose: Verify the grid displays data correctly after loading.
+
+Steps:
+   1. After loading data, click "Refresh Data" in the ribbon
+   2. The grid should render on the active sheet
+
+Expected Result:
+   - Row headers show members of one or more dimensions
+   - Column headers show members of other dimensions
+   - Data cells show numeric values from the loaded data
+   - Columns auto-fit to content width
+   - The default view shows:
+     * View dimension (Actual/Budget/Forecast) on one axis
+     * Other dimensions arranged on rows/columns
+
+What this confirms:
+   - OLAP grid building with Cartesian products
+   - Multi-dimensional data retrieval from SQLite
+   - Cell rendering via COM reflection
+
+
+--------------------------------------------------------------------------------
+TEST 5: Drill Down on a Member
+--------------------------------------------------------------------------------
+Purpose: Verify drill-down navigation works.
+
+Steps:
+   1. After Test 4, the grid should be visible with data
+   2. Click on a row or column header cell (e.g., click on "Electronics")
+   3. Click "Drill Down" in the Navigate group
+   4. A dialog appears with drill options:
+      - "Children" - show child members
+      - "Next Level" - expand to next hierarchy level
+   5. Select an option and click OK
+
+Expected Result:
+   - If the member has children, they replace or expand the parent
+   - The grid updates to show the drilled-down view
+   - Data values update accordingly
+
+Note: If the member has no children (is a leaf), you'll see a message
+saying there are no children to drill into.
+
+What this confirms:
+   - Cell metadata (dimension/member ID) stored in comments works
+   - Hierarchical navigation works
+   - View state management works
+
+
+--------------------------------------------------------------------------------
+TEST 6: Drill Up
+--------------------------------------------------------------------------------
+Purpose: Verify drill-up (reverse of drill-down) works.
+
+Steps:
+   1. After drilling down (Test 5), click on a child member cell
+   2. Click "Drill Up" in the Navigate group
+
+Expected Result:
+   - The view returns to the parent level
+   - The grid updates to show the rolled-up view
+
+What this confirms:
+   - Upward hierarchy navigation works
+   - Parent member lookup works
+
+
+--------------------------------------------------------------------------------
+TEST 7: Swap Row/Col (Pivot)
+--------------------------------------------------------------------------------
+Purpose: Verify pivoting rows and columns.
+
+Steps:
+   1. With a grid visible, note which dimensions are on rows vs columns
+   2. Click "Swap Row/Col" in the View group
+
+Expected Result:
+   - Dimensions that were on rows move to columns, and vice versa
+   - The grid re-renders with swapped axes
+   - Data values remain the same, just rearranged
+
+What this confirms:
+   - Pivot/transpose operation works
+   - View state correctly tracks row/column axes
+
+
+--------------------------------------------------------------------------------
+TEST 8: Keep Selected / Remove Selected
+--------------------------------------------------------------------------------
+Purpose: Verify filtering operations.
+
+Steps:
+   KEEP SELECTED:
+   1. Click on a member header cell (e.g., "North America")
+   2. Click "Keep Selected" in the View group
+   
+   Expected: Only "North America" remains on that axis; other regions 
+   are hidden. Data shows only North America values.
+
+   REMOVE SELECTED:
+   3. First undo (click "Undo Last") to restore all members
+   4. Click on a member header cell (e.g., "Asia")
+   5. Click "Remove Selected" in the View group
+   
+   Expected: "Asia" is removed from the axis; remaining members 
+   (North America, Europe) still show.
+
+What this confirms:
+   - Member filtering works (keep/remove)
+   - View state correctly tracks visible members per axis
+
+
+--------------------------------------------------------------------------------
+TEST 9: Undo Last
+--------------------------------------------------------------------------------
+Purpose: Verify undo functionality.
+
+Steps:
+   1. Perform any view change (drill, swap, keep, remove)
+   2. Click "Undo Last" in the View group
+
+Expected Result:
+   - The previous view state is restored
+   - The grid re-renders to match the prior state
+   - Multiple undos work (up to the original view)
+
+What this confirms:
+   - View state history (stack) works
+   - Undo correctly restores previous configurations
+
+
+--------------------------------------------------------------------------------
+TEST 10: Pick Member (Change Slice)
+--------------------------------------------------------------------------------
+Purpose: Verify picking a specific member to slice the data.
+
+Steps:
+   1. Click "Pick Member" in the Navigate group
+   2. A "Member Picker" dialog opens showing all dimensions and their members
+   3. Select a dimension (e.g., "View")
+   4. Select a member (e.g., "Budget")
+   5. Choose placement: "Row" or "Column"
+   6. Click OK
+
+Expected Result:
+   - The selected member/dimension is placed on the chosen axis
+   - The grid updates to show data sliced by that member
+   - For example, picking "Budget" for View shows only Budget data
+
+What this confirms:
+   - Interactive member selection works
+   - Dynamic axis placement works
+   - Data slicing by arbitrary dimension/member
+
+
+--------------------------------------------------------------------------------
+TEST 11: Export to PDF
+--------------------------------------------------------------------------------
+Purpose: Verify PDF report generation.
+
+Steps:
+   1. With a grid visible, click "Export PDF" in the Report group
+   2. A "Save As" dialog appears
+   3. Choose a location and filename (default: MyOlap_<ModelName>_<date>.pdf)
+   4. Click Save
+   5. Open the saved PDF file
+
+Expected Result:
+   - A PDF file is created at the chosen location
+   - The PDF contains the current grid view as a formatted report
+   - The model name and date appear in the report header
+
+What this confirms:
+   - PDF generation via PdfSharpCore works
+   - Report formatting works
+   - File save dialog works correctly
+
+
+--------------------------------------------------------------------------------
+TEST 12: Settings
+--------------------------------------------------------------------------------
+Purpose: Verify model settings can be modified.
+
+Steps:
+   1. Click "Settings" in the Admin group
+   2. A "Settings" dialog opens showing configurable options
+   3. Review/modify any settings
+   4. Click OK to save, or Cancel to discard
+
+Expected Result:
+   - Settings dialog opens without error
+   - Changes are saved to the database
+   - Grid refreshes if display-related settings were changed
+
+What this confirms:
+   - Settings persistence in SQLite works
+   - Settings UI works
+
+
+--------------------------------------------------------------------------------
+TEST 13: Open an Existing Model
+--------------------------------------------------------------------------------
+Purpose: Verify models persist across Excel sessions.
+
+Steps:
+   1. Close Excel completely
+   2. Reopen Excel (or use LaunchMyOlap.bat)
+   3. Click "Select Model" in the ribbon
+   4. The "Model Browser" dialog should show "Sales Analysis" (from Test 1)
+   5. Select "Sales Analysis" and click "Open"
+
+Expected Result:
+   - The model loads with all its dimensions, members, and data
+   - The grid renders showing the previously loaded data
+   - All operations (drill, pivot, etc.) work on the restored model
+
+What this confirms:
+   - SQLite database persistence across sessions
+   - Model restoration works correctly
+   - All data survives Excel restart
+
+
+================================================================================
+E. TROUBLESHOOTING
+================================================================================
+
+PROBLEM: "MyOlap v2.2" tab does not appear
+   - Use LaunchMyOlap.bat to launch (it clears cache and registers properly)
+   - If still missing, manually load the XLL:
+     File > Options > Add-ins > Excel Add-ins > Browse >
+     %LOCALAPPDATA%\MyOlap\MyOlap-AddIn64.xll
+
+PROBLEM: .NET runtime error on startup
+   - Install .NET 8.0 Desktop Runtime (x64) from:
+     https://dotnet.microsoft.com/en-us/download/dotnet/8.0
+   - Must be the x64 version for 64-bit Excel
+
+PROBLEM: "Select Model" or other button shows an error
+   - Close Excel completely
+   - Run LaunchMyOlap.bat (clears resiliency data)
+   - Try again
+
+PROBLEM: Data doesn't show after loading
+   - Click "Refresh Data" to rebuild the grid
+   - Verify the CSV columns were mapped correctly during load
+
+PROBLEM: Add-in was working but stopped
+   - Excel may have disabled it after a crash
+   - Run LaunchMyOlap.bat (it clears the disabled items registry)
+
+PROBLEM: Grid shows "Model is ready" after selecting an existing model
+   - This means the model has no data loaded yet
+   - Use "Load Data" to import data, then "Refresh Data"
+
+
+================================================================================
+F. FILE LOCATIONS
+================================================================================
+
+Project Source Code:
+   c:\Emile\Nanda\Nanda\first\MyOlap\
+
+Build Output:
+   c:\Emile\Nanda\Nanda\first\MyOlap\bin\Release\net8.0-windows\
+
+Installed Add-in:
+   %LOCALAPPDATA%\MyOlap\
+   (typically C:\Users\<username>\AppData\Local\MyOlap\)
+
+SQLite Database:
+   %LOCALAPPDATA%\MyOlap\myolap.db
+   (created automatically on first run)
+
+Sample Data:
+   c:\Emile\Nanda\Nanda\first\TestData\SampleData.csv
+
+Launcher Script:
+   c:\Emile\Nanda\Nanda\first\LaunchMyOlap.bat
+
+
+================================================================================
+                         END OF TEST GUIDE
+================================================================================

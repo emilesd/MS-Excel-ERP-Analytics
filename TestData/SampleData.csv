@@ -1,0 +1,61 @@
+View,Year,Time,Version,Product,Region,Measure,Value
+Actual,2024,Q1,V1,Electronics,North America,Revenue,150000
+Actual,2024,Q1,V1,Electronics,North America,COGS,90000
+Actual,2024,Q1,V1,Electronics,North America,Profit,60000
+Actual,2024,Q1,V1,Electronics,Europe,Revenue,120000
+Actual,2024,Q1,V1,Electronics,Europe,COGS,75000
+Actual,2024,Q1,V1,Electronics,Europe,Profit,45000
+Actual,2024,Q1,V1,Electronics,Asia,Revenue,200000
+Actual,2024,Q1,V1,Electronics,Asia,COGS,110000
+Actual,2024,Q1,V1,Electronics,Asia,Profit,90000
+Actual,2024,Q2,V1,Electronics,North America,Revenue,160000
+Actual,2024,Q2,V1,Electronics,North America,COGS,95000
+Actual,2024,Q2,V1,Electronics,North America,Profit,65000
+Actual,2024,Q2,V1,Electronics,Europe,Revenue,130000
+Actual,2024,Q2,V1,Electronics,Europe,COGS,80000
+Actual,2024,Q2,V1,Electronics,Europe,Profit,50000
+Actual,2024,Q2,V1,Electronics,Asia,Revenue,210000
+Actual,2024,Q2,V1,Electronics,Asia,COGS,115000
+Actual,2024,Q2,V1,Electronics,Asia,Profit,95000
+Actual,2024,Q1,V1,Clothing,North America,Revenue,80000
+Actual,2024,Q1,V1,Clothing,North America,COGS,45000
+Actual,2024,Q1,V1,Clothing,North America,Profit,35000
+Actual,2024,Q1,V1,Clothing,Europe,Revenue,95000
+Actual,2024,Q1,V1,Clothing,Europe,COGS,55000
+Actual,2024,Q1,V1,Clothing,Europe,Profit,40000
+Actual,2024,Q1,V1,Clothing,Asia,Revenue,70000
+Actual,2024,Q1,V1,Clothing,Asia,COGS,40000
+Actual,2024,Q1,V1,Clothing,Asia,Profit,30000
+Actual,2024,Q2,V1,Clothing,North America,Revenue,85000
+Actual,2024,Q2,V1,Clothing,North America,COGS,48000
+Actual,2024,Q2,V1,Clothing,North America,Profit,37000
+Actual,2024,Q2,V1,Clothing,Europe,Revenue,100000
+Actual,2024,Q2,V1,Clothing,Europe,COGS,58000
+Actual,2024,Q2,V1,Clothing,Europe,Profit,42000
+Actual,2024,Q2,V1,Clothing,Asia,Revenue,75000
+Actual,2024,Q2,V1,Clothing,Asia,COGS,42000
+Actual,2024,Q2,V1,Clothing,Asia,Profit,33000
+Budget,2024,Q1,V1,Electronics,North America,Revenue,145000
+Budget,2024,Q1,V1,Electronics,North America,COGS,88000
+Budget,2024,Q1,V1,Electronics,North America,Profit,57000
+Budget,2024,Q1,V1,Electronics,Europe,Revenue,115000
+Budget,2024,Q1,V1,Electronics,Europe,COGS,72000
+Budget,2024,Q1,V1,Electronics,Europe,Profit,43000
+Budget,2024,Q1,V1,Electronics,Asia,Revenue,195000
+Budget,2024,Q1,V1,Electronics,Asia,COGS,108000
+Budget,2024,Q1,V1,Electronics,Asia,Profit,87000
+Budget,2024,Q1,V1,Clothing,North America,Revenue,78000
+Budget,2024,Q1,V1,Clothing,North America,COGS,44000
+Budget,2024,Q1,V1,Clothing,North America,Profit,34000
+Budget,2024,Q1,V1,Clothing,Europe,Revenue,92000
+Budget,2024,Q1,V1,Clothing,Europe,COGS,53000
+Budget,2024,Q1,V1,Clothing,Europe,Profit,39000
+Budget,2024,Q1,V1,Clothing,Asia,Revenue,68000
+Budget,2024,Q1,V1,Clothing,Asia,COGS,38000
+Budget,2024,Q1,V1,Clothing,Asia,Profit,30000
+Forecast,2024,Q1,V1,Electronics,North America,Revenue,155000
+Forecast,2024,Q1,V1,Electronics,Europe,Revenue,125000
+Forecast,2024,Q1,V1,Electronics,Asia,Revenue,205000
+Forecast,2024,Q1,V1,Clothing,North America,Revenue,82000
+Forecast,2024,Q1,V1,Clothing,Europe,Revenue,97000
+Forecast,2024,Q1,V1,Clothing,Asia,Revenue,72000
