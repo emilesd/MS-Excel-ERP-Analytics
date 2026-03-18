@@ -2,16 +2,6 @@
 
 An MS Excel add-in for OLAP-style analytics. Pull data from ERP/Excel/CSV/TXT files, clean it, visualize it, and generate reports — all within Excel.
 
-
-For questions, support, or collaboration inquiries:  
-**Email:** emilesonneveld617@gmail.com
-Hello, Nanda.
-I'd like to contact you via email.
-Please contact me here. `emilesonneveld617@gmail.com`
-Actually freealncer detects our chatting so I can't share contact info with you inside of platform.
-Please avoid to leave the message regarding this, just email me if you don't mind.
-thanks
-
 ---
 
 ## Features
