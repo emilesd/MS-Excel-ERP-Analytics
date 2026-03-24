@@ -23,36 +23,37 @@ public class DataLoadForm : Form
     public DataLoadForm(long modelId)
     {
         _modelId = modelId;
-        Text = "MyOlap – Load Data";
-        Width = 600;
-        Height = 480;
+        AutoScaleMode = AutoScaleMode.Dpi;
+        AutoScaleDimensions = new SizeF(96F, 96F);
+        Text = "MyOlap \u2013 Load Data";
+        Width = 700;
+        Height = 520;
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
-        AutoScaleMode = AutoScaleMode.Dpi;
 
-        var lblFile = new Label { Text = "Data File:", Left = 12, Top = 14, Width = 70 };
-        _txtFile = new TextBox { Left = 85, Top = 12, Width = 400, ReadOnly = true };
-        _btnBrowse = new Button { Text = "…", Left = 490, Top = 11, Width = 40, Height = 24 };
+        var lblFile = new Label { Text = "Data File:", Left = 12, Top = 14, Width = 80 };
+        _txtFile = new TextBox { Left = 95, Top = 12, Width = 480, ReadOnly = true };
+        _btnBrowse = new Button { Text = "\u2026", Left = 582, Top = 10, Width = 50, Height = 28 };
         _btnBrowse.Click += BtnBrowse_Click;
 
-        var lblMap = new Label { Text = "Column → Dimension Mapping:", Left = 12, Top = 48, Width = 300 };
+        var lblMap = new Label { Text = "Column \u2192 Dimension Mapping:", Left = 12, Top = 50, Width = 350 };
         _dgvMapping = new DataGridView
         {
-            Left = 12, Top = 70, Width = 560, Height = 280,
+            Left = 12, Top = 74, Width = 654, Height = 300,
             AllowUserToAddRows = false,
             AllowUserToDeleteRows = false,
             SelectionMode = DataGridViewSelectionMode.FullRowSelect
         };
         _dgvMapping.Columns.Add("Column", "File Column");
-        _dgvMapping.Columns[0].Width = 180;
+        _dgvMapping.Columns[0].Width = 200;
         _dgvMapping.Columns[0].ReadOnly = true;
 
         var dimCol = new DataGridViewComboBoxColumn
         {
             Name = "Dimension",
             HeaderText = "Map To Dimension",
-            Width = 200
+            Width = 220
         };
         _dgvMapping.Columns.Add(dimCol);
 
@@ -60,21 +61,21 @@ public class DataLoadForm : Form
         {
             Name = "Role",
             HeaderText = "Role",
-            Width = 120
+            Width = 160
         };
         typeCol.Items.AddRange("Dimension", "Value (Numeric)", "Value (Text)", "(Skip)");
         _dgvMapping.Columns.Add(typeCol);
 
-        _btnLoad = new Button { Text = "Load Data", Left = 380, Top = 365, Width = 100, Height = 30 };
+        _btnLoad = new Button { Text = "Load Data", Left = 450, Top = 388, Width = 120, Height = 34 };
         _btnLoad.Click += BtnLoad_Click;
 
         _btnCancel = new Button
         {
-            Text = "Cancel", Left = 490, Top = 365, Width = 80, Height = 30,
+            Text = "Cancel", Left = 580, Top = 388, Width = 100, Height = 34,
             DialogResult = DialogResult.Cancel
         };
 
-        _lblStatus = new Label { Text = "", Left = 12, Top = 405, Width = 560, Height = 24 };
+        _lblStatus = new Label { Text = "", Left = 12, Top = 432, Width = 654, Height = 26 };
 
         Controls.AddRange(new Control[]
         {

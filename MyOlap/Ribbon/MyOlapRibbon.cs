@@ -18,11 +18,22 @@ namespace MyOlap.Ribbon;
 public class MyOlapRibbon : ExcelRibbon
 {
     private readonly OlapEngine _engine = OlapEngine.Instance;
+    private IRibbonUI? _ribbonUi;
+
+    public void OnRibbonLoad(IRibbonUI ribbonUI)
+    {
+        _ribbonUi = ribbonUI;
+    }
+
+    private void RefreshInfoLabels()
+    {
+        try { _ribbonUi?.InvalidateControl("lblActiveModel"); } catch { }
+    }
 
     public override string GetCustomUI(string ribbonId)
     {
         return @"
-<customUI xmlns='http://schemas.microsoft.com/office/2009/07/customui'>
+<customUI xmlns='http://schemas.microsoft.com/office/2009/07/customui' onLoad='OnRibbonLoad'>
   <ribbon>
     <tabs>
       <tab id='tabMyOlap' label='MyOlap'>
@@ -84,11 +95,13 @@ public class MyOlapRibbon : ExcelRibbon
                 var modelId = mgr.CreateEmptyModel(name);
                 _engine.SelectModel(modelId);
                 WriteGridToSheet();
+                RefreshInfoLabels();
             }
             else if (form.SelectedModelId > 0)
             {
                 _engine.SelectModel(form.SelectedModelId);
                 WriteGridToSheet();
+                RefreshInfoLabels();
             }
         }
         catch (Exception ex)
@@ -492,16 +505,17 @@ public class MyOlapRibbon : ExcelRibbon
     {
         var form = new Form
         {
-            Text = title, Width = 400, Height = 200,
+            AutoScaleMode = AutoScaleMode.Dpi,
+            AutoScaleDimensions = new SizeF(96F, 96F),
+            Text = title, Width = 460, Height = 220,
             FormBorderStyle = FormBorderStyle.FixedDialog,
             StartPosition = FormStartPosition.CenterParent,
-            MaximizeBox = false, MinimizeBox = false,
-            AutoScaleMode = AutoScaleMode.Dpi
+            MaximizeBox = false, MinimizeBox = false
         };
-        var lbl = new Label { Text = prompt, Left = 16, Top = 16, Width = 340 };
-        var txt = new TextBox { Left = 16, Top = 46, Width = 340 };
-        var ok = new Button { Text = "OK", Left = 180, Top = 90, Width = 85, Height = 32, DialogResult = DialogResult.OK };
-        var cancel = new Button { Text = "Cancel", Left = 275, Top = 90, Width = 85, Height = 32, DialogResult = DialogResult.Cancel };
+        var lbl = new Label { Text = prompt, Left = 16, Top = 16, Width = 400 };
+        var txt = new TextBox { Left = 16, Top = 50, Width = 400 };
+        var ok = new Button { Text = "OK", Left = 220, Top = 100, Width = 100, Height = 36, DialogResult = DialogResult.OK };
+        var cancel = new Button { Text = "Cancel", Left = 330, Top = 100, Width = 100, Height = 36, DialogResult = DialogResult.Cancel };
         form.Controls.AddRange(new Control[] { lbl, txt, ok, cancel });
         form.AcceptButton = ok;
         form.CancelButton = cancel;

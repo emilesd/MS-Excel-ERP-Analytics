@@ -22,31 +22,32 @@ public class ManageStructureForm : Form
     public ManageStructureForm(long modelId)
     {
         _modelId = modelId;
-        Text = "MyOlap – Manage Model Structure";
-        Width = 700;
-        Height = 520;
-        StartPosition = FormStartPosition.CenterScreen;
         AutoScaleMode = AutoScaleMode.Dpi;
+        AutoScaleDimensions = new SizeF(96F, 96F);
+        Text = "MyOlap \u2013 Manage Model Structure";
+        Width = 820;
+        Height = 560;
+        StartPosition = FormStartPosition.CenterScreen;
 
-        var lblDim = new Label { Text = "Dimensions:", Left = 12, Top = 12, Width = 180 };
-        _lbDimensions = new ListBox { Left = 12, Top = 34, Width = 200, Height = 380 };
+        var lblDim = new Label { Text = "Dimensions:", Left = 12, Top = 12, Width = 200 };
+        _lbDimensions = new ListBox { Left = 12, Top = 34, Width = 220, Height = 400 };
         _lbDimensions.SelectedIndexChanged += (_, _) => LoadMembers();
 
-        _btnAddDim = new Button { Text = "Add Dimension", Left = 12, Top = 420, Width = 120, Height = 28 };
+        _btnAddDim = new Button { Text = "Add Dimension", Left = 12, Top = 444, Width = 150, Height = 34 };
         _btnAddDim.Click += BtnAddDim_Click;
 
-        var lblMem = new Label { Text = "Members (Hierarchy):", Left = 230, Top = 12, Width = 200 };
-        _tvMembers = new TreeView { Left = 230, Top = 34, Width = 440, Height = 380 };
+        var lblMem = new Label { Text = "Members (Hierarchy):", Left = 248, Top = 12, Width = 220 };
+        _tvMembers = new TreeView { Left = 248, Top = 34, Width = 540, Height = 400 };
 
-        _btnAddMember = new Button { Text = "Add Member", Left = 230, Top = 420, Width = 110, Height = 28 };
+        _btnAddMember = new Button { Text = "Add Member", Left = 248, Top = 444, Width = 140, Height = 34 };
         _btnAddMember.Click += BtnAddMember_Click;
 
-        _btnRemoveMember = new Button { Text = "Remove", Left = 350, Top = 420, Width = 80, Height = 28 };
+        _btnRemoveMember = new Button { Text = "Remove Member", Left = 398, Top = 444, Width = 140, Height = 34 };
         _btnRemoveMember.Click += BtnRemoveMember_Click;
 
         _btnClose = new Button
         {
-            Text = "Close", Left = 580, Top = 420, Width = 90, Height = 28,
+            Text = "Close", Left = 688, Top = 444, Width = 100, Height = 34,
             DialogResult = DialogResult.OK
         };
 
@@ -144,16 +145,17 @@ public class ManageStructureForm : Form
     {
         var form = new Form
         {
-            Text = title, Width = 400, Height = 200,
+            AutoScaleMode = AutoScaleMode.Dpi,
+            AutoScaleDimensions = new SizeF(96F, 96F),
+            Text = title, Width = 460, Height = 220,
             FormBorderStyle = FormBorderStyle.FixedDialog,
             StartPosition = FormStartPosition.CenterParent,
-            MaximizeBox = false, MinimizeBox = false,
-            AutoScaleMode = AutoScaleMode.Dpi
+            MaximizeBox = false, MinimizeBox = false
         };
-        var lbl = new Label { Text = prompt, Left = 16, Top = 16, Width = 340 };
-        var txt = new TextBox { Left = 16, Top = 46, Width = 340 };
-        var ok = new Button { Text = "OK", Left = 180, Top = 90, Width = 85, Height = 32, DialogResult = DialogResult.OK };
-        var cancel = new Button { Text = "Cancel", Left = 275, Top = 90, Width = 85, Height = 32, DialogResult = DialogResult.Cancel };
+        var lbl = new Label { Text = prompt, Left = 16, Top = 16, Width = 400 };
+        var txt = new TextBox { Left = 16, Top = 50, Width = 400 };
+        var ok = new Button { Text = "OK", Left = 220, Top = 100, Width = 100, Height = 36, DialogResult = DialogResult.OK };
+        var cancel = new Button { Text = "Cancel", Left = 330, Top = 100, Width = 100, Height = 36, DialogResult = DialogResult.Cancel };
         form.Controls.AddRange(new Control[] { lbl, txt, ok, cancel });
         form.AcceptButton = ok;
         form.CancelButton = cancel;

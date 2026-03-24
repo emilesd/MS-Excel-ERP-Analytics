@@ -24,36 +24,37 @@ public class MemberPickerForm : Form
 
     public MemberPickerForm(long modelId)
     {
-        Text = "MyOlap – Pick Member";
-        Width = 420;
-        Height = 500;
+        AutoScaleMode = AutoScaleMode.Dpi;
+        AutoScaleDimensions = new SizeF(96F, 96F);
+        Text = "MyOlap \u2013 Pick Member";
+        Width = 500;
+        Height = 540;
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
-        AutoScaleMode = AutoScaleMode.Dpi;
 
-        var lblDim = new Label { Text = "Dimension:", Left = 12, Top = 12, Width = 80 };
+        var lblDim = new Label { Text = "Dimension:", Left = 12, Top = 14, Width = 90 };
         _cbDimension = new ComboBox
         {
-            Left = 96, Top = 10, Width = 300, DropDownStyle = ComboBoxStyle.DropDownList
+            Left = 106, Top = 12, Width = 360, DropDownStyle = ComboBoxStyle.DropDownList
         };
         _cbDimension.SelectedIndexChanged += (_, _) => LoadTree();
 
         _tree = new TreeView
         {
-            Left = 12, Top = 44, Width = 380, Height = 320,
+            Left = 12, Top = 46, Width = 456, Height = 340,
             HideSelection = false
         };
 
-        var pnlPlacement = new Panel { Left = 12, Top = 374, Width = 380, Height = 30 };
-        _rbRow = new RadioButton { Text = "Place on Rows", Left = 0, Top = 4, Width = 140, Checked = true };
-        _rbCol = new RadioButton { Text = "Place on Columns", Left = 150, Top = 4, Width = 160 };
+        var pnlPlacement = new Panel { Left = 12, Top = 396, Width = 456, Height = 34 };
+        _rbRow = new RadioButton { Text = "Place on Rows", Left = 0, Top = 6, Width = 180, Checked = true };
+        _rbCol = new RadioButton { Text = "Place on Columns", Left = 190, Top = 6, Width = 200 };
         pnlPlacement.Controls.Add(_rbRow);
         pnlPlacement.Controls.Add(_rbCol);
 
         _btnOk = new Button
         {
-            Text = "OK", Left = 220, Top = 415, Width = 80, Height = 30,
+            Text = "OK", Left = 260, Top = 440, Width = 100, Height = 34,
             DialogResult = DialogResult.OK
         };
         _btnOk.Click += (_, _) =>
@@ -66,7 +67,7 @@ public class MemberPickerForm : Form
 
         _btnCancel = new Button
         {
-            Text = "Cancel", Left = 310, Top = 415, Width = 80, Height = 30,
+            Text = "Cancel", Left = 370, Top = 440, Width = 100, Height = 34,
             DialogResult = DialogResult.Cancel
         };
 
