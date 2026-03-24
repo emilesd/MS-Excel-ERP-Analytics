@@ -113,15 +113,16 @@ public class ModelManager
 
     private void CreatePreDefinedDimensions(long modelId)
     {
-        var viewDim = InsertDim(modelId, "View", DimensionType.View, 0);
+        InsertDim(modelId, "Measure", DimensionType.Measure, 0);
+        InsertDim(modelId, "Time", DimensionType.Time, 1);
+        InsertDim(modelId, "Year", DimensionType.Year, 2);
+
+        var viewDim = InsertDim(modelId, "View", DimensionType.View, 3);
         _repo.InsertMember(new Member { DimensionId = viewDim, Name = "Actual", Description = "Actual", Level = 0, SortOrder = 0 });
         _repo.InsertMember(new Member { DimensionId = viewDim, Name = "Budget", Description = "Budget", Level = 0, SortOrder = 1 });
         _repo.InsertMember(new Member { DimensionId = viewDim, Name = "Forecast", Description = "Forecast", Level = 0, SortOrder = 2 });
 
-        InsertDim(modelId, "Version", DimensionType.Version, 1);
-        InsertDim(modelId, "Time", DimensionType.Time, 2);
-        InsertDim(modelId, "Year", DimensionType.Year, 3);
-        InsertDim(modelId, "Measure", DimensionType.Measure, 4);
+        InsertDim(modelId, "Version", DimensionType.Version, 4);
     }
 
     private long InsertDim(long modelId, string name, DimensionType type, int sort)

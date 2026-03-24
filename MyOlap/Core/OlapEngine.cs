@@ -18,9 +18,8 @@ public class OlapEngine
     public OlapModel? ActiveModel { get; private set; }
 
     /// <summary>
-    /// Opens a model and builds the default view: first row dimension gets the
-    /// first user-defined dimension, column dimension gets the Measure dimension,
-    /// all other dimensions go to POV with their first root member selected.
+    /// Opens a model and builds the default view:
+    /// Measures on rows, Time on columns, all other dimensions on POV (page filter).
     /// </summary>
     public ViewState SelectModel(long modelId)
     {
@@ -35,29 +34,14 @@ public class OlapEngine
         var view = new ViewState { ModelId = modelId };
 
         var measureDim = dims.FirstOrDefault(d => d.DimType == DimensionType.Measure);
-        var rowDim = dims.FirstOrDefault(d =>
-            d.DimType == DimensionType.UserDefined) ?? dims.FirstOrDefault(d => d.DimType != DimensionType.Measure);
-
-        if (rowDim != null)
-        {
-            var roots = _repo.GetRootMembers(rowDim.Id);
-            if (roots.Count > 0)
-            {
-                view.RowAxes.Add(new DimensionAxis
-                {
-                    DimensionId = rowDim.Id,
-                    DimensionName = rowDim.Name,
-                    VisibleMemberIds = roots.Select(r => r.Id).ToList()
-                });
-            }
-        }
+        var timeDim = dims.FirstOrDefault(d => d.DimType == DimensionType.Time);
 
         if (measureDim != null)
         {
             var roots = _repo.GetRootMembers(measureDim.Id);
             if (roots.Count > 0)
             {
-                view.ColAxes.Add(new DimensionAxis
+                view.RowAxes.Add(new DimensionAxis
                 {
                     DimensionId = measureDim.Id,
                     DimensionName = measureDim.Name,
@@ -66,9 +50,23 @@ public class OlapEngine
             }
         }
 
+        if (timeDim != null)
+        {
+            var roots = _repo.GetRootMembers(timeDim.Id);
+            if (roots.Count > 0)
+            {
+                view.ColAxes.Add(new DimensionAxis
+                {
+                    DimensionId = timeDim.Id,
+                    DimensionName = timeDim.Name,
+                    VisibleMemberIds = roots.Select(r => r.Id).ToList()
+                });
+            }
+        }
+
         foreach (var d in dims)
         {
-            if (d.Id == rowDim?.Id || d.Id == measureDim?.Id) continue;
+            if (d.Id == measureDim?.Id || d.Id == timeDim?.Id) continue;
             var roots = _repo.GetRootMembers(d.Id);
             if (roots.Count > 0)
                 view.PovSelections[d.Id] = roots[0].Id;

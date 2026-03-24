@@ -25,34 +25,44 @@ public class MyOlapRibbon : ExcelRibbon
 <customUI xmlns='http://schemas.microsoft.com/office/2009/07/customui'>
   <ribbon>
     <tabs>
-      <tab id='tabMyOlap' label='MyOlap v2.2'>
+      <tab id='tabMyOlap' label='MyOlap'>
         <group id='grpModel' label='Model'>
-          <button id='btnSelectModel'  label='Select Model'  size='large' imageMso='DatabaseOpen'      onAction='OnSelectModel'/>
-          <button id='btnRefreshData'  label='Refresh Data'  size='large' imageMso='Refresh'            onAction='OnRefreshData'/>
+          <button id='btnSelectModel'  label='Select Model'  size='large' imageMso='OmsBusinessDataList'  onAction='OnSelectModel'/>
+          <button id='btnRefreshData'  label='Refresh Data'  size='large' imageMso='Refresh'              onAction='OnRefreshData'/>
         </group>
         <group id='grpNavigate' label='Navigate'>
-          <button id='btnPickMember'   label='Pick Member'   size='large' imageMso='ShowTreeView'       onAction='OnPickMember'/>
-          <button id='btnDrillDown'    label='Drill Down'    size='normal' imageMso='ViewZoomIn'        onAction='OnDrillDown'/>
-          <button id='btnDrillUp'      label='Drill Up'      size='normal' imageMso='ViewZoomOut'       onAction='OnDrillUp'/>
+          <button id='btnPickMember'   label='Pick Member'   size='large' imageMso='ShowTreeView'         onAction='OnPickMember'/>
+          <button id='btnDrillDown'    label='Drill Down'    size='normal' imageMso='ZoomIn'              onAction='OnDrillDown'/>
+          <button id='btnDrillUp'      label='Drill Up'      size='normal' imageMso='ZoomOut'             onAction='OnDrillUp'/>
         </group>
         <group id='grpView' label='View'>
-          <button id='btnSwapRowCol'   label='Swap Row/Col'  size='normal' imageMso='PivotTablePivot'   onAction='OnSwapRowCol'/>
-          <button id='btnKeepSelected' label='Keep Selected' size='normal' imageMso='FilterBySelection' onAction='OnKeepSelected'/>
-          <button id='btnRemoveSelected' label='Remove Selected' size='normal' imageMso='Delete'        onAction='OnRemoveSelected'/>
-          <button id='btnUndoLast'     label='Undo Last'     size='normal' imageMso='Undo'              onAction='OnUndoLast'/>
+          <button id='btnSwapRowCol'   label='Swap to Row/Col' size='normal' imageMso='PivotTablePivot'   onAction='OnSwapRowCol'/>
+          <button id='btnKeepSelected' label='Keep Selected' size='normal' imageMso='FilterBySelection'   onAction='OnKeepSelected'/>
+          <button id='btnRemoveSelected' label='Remove Selected' size='normal' imageMso='Delete'          onAction='OnRemoveSelected'/>
+          <button id='btnUndoLast'     label='Undo Last'     size='normal' imageMso='Undo'                onAction='OnUndoLast'/>
         </group>
         <group id='grpAdmin' label='Admin'>
-          <button id='btnManageModel'  label='Manage Model'  size='large' imageMso='PropertySheet'      onAction='OnManageModel'/>
-          <button id='btnLoadData'     label='Load Data'     size='normal' imageMso='ImportTextFile'     onAction='OnLoadData'/>
-          <button id='btnSettings'     label='Settings'      size='normal' imageMso='ControlProperties'  onAction='OnSettings'/>
+          <button id='btnManageModel'  label='Manage Model'  size='large' imageMso='PropertySheet'        onAction='OnManageModel'/>
+          <button id='btnLoadData'     label='Load Data'     size='normal' imageMso='ImportTextFile'       onAction='OnLoadData'/>
+          <button id='btnSettings'     label='Settings'      size='normal' imageMso='ControlProperties'    onAction='OnSettings'/>
         </group>
         <group id='grpReport' label='Report'>
-          <button id='btnExportPdf'    label='Export PDF'    size='large' imageMso='FileSaveAsPdfOrXps'  onAction='OnExportPdf'/>
+          <button id='btnExportPdf'    label='Export PDF'    size='large' imageMso='FileSaveAsPdfOrXps'    onAction='OnExportPdf'/>
+        </group>
+        <group id='grpInfo' label='Info'>
+          <labelControl id='lblActiveModel' getLabel='GetActiveModelLabel'/>
+          <labelControl id='lblVersion'     label='Version: v2.2'/>
         </group>
       </tab>
     </tabs>
   </ribbon>
 </customUI>";
+    }
+
+    public string GetActiveModelLabel(IRibbonControl control)
+    {
+        var name = _engine.ActiveModel?.Name;
+        return string.IsNullOrEmpty(name) ? "Model: (none)" : $"Model: {name}";
     }
 
     #region Ribbon Callbacks
