@@ -27,3 +27,19 @@ TestData/*.pdf
 # Private/sensitive files
 JobPostAndChattinglog.txt
 MyOlap - Product Notes v1.2.pdf
+
+# Meeting logs and chat history
+meetinglog-*.txt
+chatting_history.md
+
+# Internal feedback docs
+feedback-copy.pdf
+MyOlap - Feedback Updates and Fixes.pdf
+
+# Temporary screenshots at root level
+/current_state.png
+/screenshot.png
+/screenshot_desktop.png
+/select_model.png
+/ribbon.png
+/myolap_ribbon.png

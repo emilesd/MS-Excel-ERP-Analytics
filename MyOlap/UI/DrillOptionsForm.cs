@@ -25,7 +25,7 @@ public class DrillOptionsForm : Form
 
         var rb1 = new RadioButton
         {
-            Text = "Next Generation (children only)",
+            Text = "Next Generation (children included)",
             Left = 20, Top = 18, Width = 340, Checked = true
         };
         var rb2 = new RadioButton

@@ -84,7 +84,7 @@ You can also create a model from an Excel workbook with two sheets:
 1. Click on a member cell (row or column header) in the worksheet.
 2. Click **Drill Down** on the ribbon.
 3. Choose the drill mode:
-   - **Next Generation**: shows immediate children only.
+   - **Next Generation**: shows immediate children included.
    - **All Generations**: shows the full subtree.
    - **Base Generation Only**: shows only leaf (bottom-level) members.
 4. The member is replaced by its children in the grid.

@@ -1,61 +1,61 @@
 View,Year,Time,Version,Product,Region,Measure,Value
-Actual,2024,Q1,V1,Electronics,North America,Revenue,150000
-Actual,2024,Q1,V1,Electronics,North America,COGS,90000
-Actual,2024,Q1,V1,Electronics,North America,Profit,60000
-Actual,2024,Q1,V1,Electronics,Europe,Revenue,120000
-Actual,2024,Q1,V1,Electronics,Europe,COGS,75000
-Actual,2024,Q1,V1,Electronics,Europe,Profit,45000
-Actual,2024,Q1,V1,Electronics,Asia,Revenue,200000
-Actual,2024,Q1,V1,Electronics,Asia,COGS,110000
-Actual,2024,Q1,V1,Electronics,Asia,Profit,90000
-Actual,2024,Q2,V1,Electronics,North America,Revenue,160000
-Actual,2024,Q2,V1,Electronics,North America,COGS,95000
-Actual,2024,Q2,V1,Electronics,North America,Profit,65000
-Actual,2024,Q2,V1,Electronics,Europe,Revenue,130000
-Actual,2024,Q2,V1,Electronics,Europe,COGS,80000
-Actual,2024,Q2,V1,Electronics,Europe,Profit,50000
-Actual,2024,Q2,V1,Electronics,Asia,Revenue,210000
-Actual,2024,Q2,V1,Electronics,Asia,COGS,115000
-Actual,2024,Q2,V1,Electronics,Asia,Profit,95000
-Actual,2024,Q1,V1,Clothing,North America,Revenue,80000
-Actual,2024,Q1,V1,Clothing,North America,COGS,45000
-Actual,2024,Q1,V1,Clothing,North America,Profit,35000
-Actual,2024,Q1,V1,Clothing,Europe,Revenue,95000
-Actual,2024,Q1,V1,Clothing,Europe,COGS,55000
-Actual,2024,Q1,V1,Clothing,Europe,Profit,40000
-Actual,2024,Q1,V1,Clothing,Asia,Revenue,70000
-Actual,2024,Q1,V1,Clothing,Asia,COGS,40000
-Actual,2024,Q1,V1,Clothing,Asia,Profit,30000
-Actual,2024,Q2,V1,Clothing,North America,Revenue,85000
-Actual,2024,Q2,V1,Clothing,North America,COGS,48000
-Actual,2024,Q2,V1,Clothing,North America,Profit,37000
-Actual,2024,Q2,V1,Clothing,Europe,Revenue,100000
-Actual,2024,Q2,V1,Clothing,Europe,COGS,58000
-Actual,2024,Q2,V1,Clothing,Europe,Profit,42000
-Actual,2024,Q2,V1,Clothing,Asia,Revenue,75000
-Actual,2024,Q2,V1,Clothing,Asia,COGS,42000
-Actual,2024,Q2,V1,Clothing,Asia,Profit,33000
-Budget,2024,Q1,V1,Electronics,North America,Revenue,145000
-Budget,2024,Q1,V1,Electronics,North America,COGS,88000
-Budget,2024,Q1,V1,Electronics,North America,Profit,57000
-Budget,2024,Q1,V1,Electronics,Europe,Revenue,115000
-Budget,2024,Q1,V1,Electronics,Europe,COGS,72000
-Budget,2024,Q1,V1,Electronics,Europe,Profit,43000
-Budget,2024,Q1,V1,Electronics,Asia,Revenue,195000
-Budget,2024,Q1,V1,Electronics,Asia,COGS,108000
-Budget,2024,Q1,V1,Electronics,Asia,Profit,87000
-Budget,2024,Q1,V1,Clothing,North America,Revenue,78000
-Budget,2024,Q1,V1,Clothing,North America,COGS,44000
-Budget,2024,Q1,V1,Clothing,North America,Profit,34000
-Budget,2024,Q1,V1,Clothing,Europe,Revenue,92000
-Budget,2024,Q1,V1,Clothing,Europe,COGS,53000
-Budget,2024,Q1,V1,Clothing,Europe,Profit,39000
-Budget,2024,Q1,V1,Clothing,Asia,Revenue,68000
-Budget,2024,Q1,V1,Clothing,Asia,COGS,38000
-Budget,2024,Q1,V1,Clothing,Asia,Profit,30000
-Forecast,2024,Q1,V1,Electronics,North America,Revenue,155000
-Forecast,2024,Q1,V1,Electronics,Europe,Revenue,125000
-Forecast,2024,Q1,V1,Electronics,Asia,Revenue,205000
-Forecast,2024,Q1,V1,Clothing,North America,Revenue,82000
-Forecast,2024,Q1,V1,Clothing,Europe,Revenue,97000
-Forecast,2024,Q1,V1,Clothing,Asia,Revenue,72000
+Actual,FY26,Jan,Draft,Electronics,North America,Sales - Goods,150000
+Actual,FY26,Jan,Draft,Electronics,North America,COGS,90000
+Actual,FY26,Jan,Draft,Electronics,North America,Profit,60000
+Actual,FY26,Jan,Draft,Electronics,Europe,Sales - Goods,120000
+Actual,FY26,Jan,Draft,Electronics,Europe,COGS-IND,75000
+Actual,FY26,Jan,Draft,Electronics,Europe,Profit,45000
+Actual,FY26,Jan,Draft,Electronics,Asia,Sales - Goods,200000
+Actual,FY26,Jan,Draft,Electronics,Asia,COGS-IND,110000
+Actual,FY26,Jan,Draft,Electronics,Asia,Profit,90000
+Actual,FY26,Apr,Draft,Electronics,North America,Sales - Goods,160000
+Actual,FY26,Apr,Draft,Electronics,North America,COGS,95000
+Actual,FY26,Apr,Draft,Electronics,North America,Profit,65000
+Actual,FY26,May,Draft,Electronics,Europe,Sales Indirect,130000
+Actual,FY26,May,Draft,Electronics,Europe,COGS,80000
+Actual,FY26,May,Draft,Electronics,Europe,Profit,50000
+Actual,FY26,May,Draft,Electronics,Asia,Sales Indirect,210000
+Actual,FY26,May,Draft,Electronics,Asia,COGS-IND,115000
+Actual,FY26,May,Draft,Electronics,Asia,Profit,95000
+Actual,FY26,Jan,Draft,Clothing,North America,Sales Indirect,80000
+Actual,FY26,Jan,Draft,Clothing,North America,COGS,45000
+Actual,FY26,Jan,Draft,Clothing,North America,Profit,35000
+Actual,FY26,Jan,Draft,Clothing,Europe,Sales Indirect,95000
+Actual,FY26,Jan,Draft,Clothing,Europe,COGS,55000
+Actual,FY26,Jan,Draft,Clothing,Europe,Profit,40000
+Actual,FY26,Jan,Draft,Clothing,Asia,Sales Indirect,70000
+Actual,FY26,Jan,Draft,Clothing,Asia,COGS-IND,40000
+Actual,FY26,Jan,Draft,Clothing,Asia,Profit,30000
+Actual,FY26,Jun,Draft,Clothing,North America,Sales - Goods,85000
+Actual,FY26,Jun,Draft,Clothing,North America,COGS,48000
+Actual,FY26,Jun,Draft,Clothing,North America,Profit,37000
+Actual,FY26,Jun,Draft,Clothing,Europe,Sales - Goods,100000
+Actual,FY26,Jun,Draft,Clothing,Europe,COGS,58000
+Actual,FY26,Jun,Draft,Clothing,Europe,Profit,42000
+Actual,FY26,Jun,Draft,Clothing,Asia,Sales - Goods,75000
+Actual,FY26,Jun,Draft,Clothing,Asia,COGS-IND,42000
+Actual,FY26,Jun,Draft,Clothing,Asia,Profit,33000
+Budget,FY26,Feb,Draft,Electronics,North America,Sales - Goods,145000
+Budget,FY26,Feb,Draft,Electronics,North America,COGS,88000
+Budget,FY26,Feb,Draft,Electronics,North America,Profit,57000
+Budget,FY26,Feb,Draft,Electronics,Europe,Sales - Goods,115000
+Budget,FY26,Feb,Draft,Electronics,Europe,COGS,72000
+Budget,FY26,Feb,Draft,Electronics,Europe,Profit,43000
+Budget,FY26,Feb,Draft,Electronics,Asia,Sales - Goods,195000
+Budget,FY26,Feb,Draft,Electronics,Asia,COGS-IND,108000
+Budget,FY26,Feb,Draft,Electronics,Asia,Profit,87000
+Budget,FY26,Feb,Draft,Clothing,North America,Sales Indirect,78000
+Budget,FY26,Feb,Draft,Clothing,North America,COGS,44000
+Budget,FY26,Feb,Draft,Clothing,North America,Profit,34000
+Budget,FY26,Feb,Draft,Clothing,Europe,Sales Indirect,92000
+Budget,FY26,Feb,Draft,Clothing,Europe,COGS,53000
+Budget,FY26,Feb,Draft,Clothing,Europe,Profit,39000
+Budget,FY26,Feb,Draft,Clothing,Asia,Sales Indirect,68000
+Budget,FY26,Feb,Draft,Clothing,Asia,COGS-IND,38000
+Budget,FY26,Feb,Draft,Clothing,Asia,Profit,30000
+Forecast,FY26,Mar,Draft,Electronics,North America,Sales - Goods,155000
+Forecast,FY26,Mar,Draft,Electronics,Europe,Sales - Goods,125000
+Forecast,FY26,Mar,Draft,Electronics,Asia,Sales - Goods,205000
+Forecast,FY26,Mar,Draft,Clothing,North America,Sales Indirect,82000
+Forecast,FY26,Mar,Draft,Clothing,Europe,Sales Indirect,97000
+Forecast,FY26,Mar,Draft,Clothing,Asia,Sales Indirect,72000

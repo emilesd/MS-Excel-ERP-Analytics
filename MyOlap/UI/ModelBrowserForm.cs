@@ -1,4 +1,4 @@
-using System.Windows.Forms;
+﻿using System.Windows.Forms;
 using MyOlap.Data;
 
 namespace MyOlap.UI;
@@ -23,7 +23,7 @@ public class ModelBrowserForm : Form
         AutoScaleMode = AutoScaleMode.Dpi;
         AutoScaleDimensions = new SizeF(96F, 96F);
         Text = "MyOlap \u2013 Select Model";
-        Width = 500;
+        Width = 560;
         Height = 400;
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -33,17 +33,17 @@ public class ModelBrowserForm : Form
         var label = new Label
         {
             Text = "Available Models:",
-            Left = 12, Top = 12, Width = 450, Height = 22
+            Left = 12, Top = 12, Width = 520, Height = 22
         };
 
         _listBox = new ListBox
         {
-            Left = 12, Top = 38, Width = 456, Height = 230
+            Left = 12, Top = 38, Width = 520, Height = 230
         };
 
         _btnSelect = new Button
         {
-            Text = "Open", Left = 12, Top = 280, Width = 100, Height = 34,
+            Text = "Open", Left = 12, Top = 280, Width = 100, Height = 36,
             DialogResult = DialogResult.OK
         };
         _btnSelect.Click += (_, _) =>
@@ -54,19 +54,19 @@ public class ModelBrowserForm : Form
 
         _btnNew = new Button
         {
-            Text = "New Model\u2026", Left = 122, Top = 280, Width = 120, Height = 34
+            Text = "New Model...", Left = 122, Top = 280, Width = 160, Height = 36
         };
         _btnNew.Click += (_, _) => { CreateNew = true; DialogResult = DialogResult.OK; Close(); };
 
         _btnDelete = new Button
         {
-            Text = "Delete", Left = 252, Top = 280, Width = 100, Height = 34
+            Text = "Delete", Left = 292, Top = 280, Width = 100, Height = 36
         };
         _btnDelete.Click += BtnDelete_Click;
 
         _btnCancel = new Button
         {
-            Text = "Cancel", Left = 362, Top = 280, Width = 100, Height = 34,
+            Text = "Cancel", Left = 402, Top = 280, Width = 100, Height = 36,
             DialogResult = DialogResult.Cancel
         };
 
@@ -100,3 +100,5 @@ public class ModelBrowserForm : Form
         }
     }
 }
+
+
