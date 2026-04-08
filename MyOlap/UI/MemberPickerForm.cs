@@ -4,10 +4,6 @@ using MyOlap.Data;
 
 namespace MyOlap.UI;
 
-/// <summary>
-/// Tree-view dialog for picking a dimension member.
-/// Displays the full parent-child hierarchy.
-/// </summary>
 public class MemberPickerForm : Form
 {
     private readonly TreeView _tree;
@@ -22,40 +18,54 @@ public class MemberPickerForm : Form
     public long SelectedDimensionId { get; private set; }
     public bool PlaceOnRow => _rbRow.Checked;
 
-    public MemberPickerForm(long modelId)
+    public MemberPickerForm(long modelId, long initialDimensionId = 0)
     {
-        AutoScaleMode = AutoScaleMode.Dpi;
-        AutoScaleDimensions = new SizeF(96F, 96F);
+        AutoScaleMode = AutoScaleMode.Font;
         Text = "MyOlap \u2013 Pick Member";
-        Width = 500;
-        Height = 540;
+        Width = 780;
+        Height = 700;
         StartPosition = FormStartPosition.CenterScreen;
-        FormBorderStyle = FormBorderStyle.FixedDialog;
-        MaximizeBox = false;
+        FormBorderStyle = FormBorderStyle.Sizable;
+        MaximizeBox = true;
+        MinimizeBox = false;
+        MinimumSize = new System.Drawing.Size(400, 400);
 
-        var lblDim = new Label { Text = "Dimension:", Left = 12, Top = 14, Width = 90 };
+        int lx = 20;
+
+        var lblDim = new Label
+        {
+            Text = "Dimension:", Left = lx, Top = 20, AutoSize = true
+        };
+
         _cbDimension = new ComboBox
         {
-            Left = 106, Top = 12, Width = 360, DropDownStyle = ComboBoxStyle.DropDownList
+            Left = lx, Top = 48, DropDownStyle = ComboBoxStyle.DropDownList,
+            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
         };
         _cbDimension.SelectedIndexChanged += (_, _) => LoadTree();
 
         _tree = new TreeView
         {
-            Left = 12, Top = 46, Width = 456, Height = 340,
-            HideSelection = false
+            Left = lx, Top = 88, HideSelection = false, Scrollable = true,
+            Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right
         };
 
-        var pnlPlacement = new Panel { Left = 12, Top = 396, Width = 456, Height = 34 };
-        _rbRow = new RadioButton { Text = "Place on Rows", Left = 0, Top = 6, Width = 180, Checked = true };
-        _rbCol = new RadioButton { Text = "Place on Columns", Left = 190, Top = 6, Width = 200 };
-        pnlPlacement.Controls.Add(_rbRow);
-        pnlPlacement.Controls.Add(_rbCol);
+        _rbRow = new RadioButton
+        {
+            Text = "Place on Rows", Left = lx, AutoSize = true, Checked = true,
+            Anchor = AnchorStyles.Bottom | AnchorStyles.Left
+        };
+        _rbCol = new RadioButton
+        {
+            Text = "Place on Columns", AutoSize = true,
+            Anchor = AnchorStyles.Bottom | AnchorStyles.Left
+        };
 
         _btnOk = new Button
         {
-            Text = "OK", Left = 260, Top = 440, Width = 100, Height = 34,
-            DialogResult = DialogResult.OK
+            Text = "OK", Width = 100, Height = 36,
+            DialogResult = DialogResult.OK,
+            Anchor = AnchorStyles.Bottom | AnchorStyles.Right
         };
         _btnOk.Click += (_, _) =>
         {
@@ -67,19 +77,50 @@ public class MemberPickerForm : Form
 
         _btnCancel = new Button
         {
-            Text = "Cancel", Left = 370, Top = 440, Width = 100, Height = 34,
-            DialogResult = DialogResult.Cancel
+            Text = "Cancel", Width = 110, Height = 36,
+            DialogResult = DialogResult.Cancel,
+            Anchor = AnchorStyles.Bottom | AnchorStyles.Right
         };
 
-        Controls.AddRange(new Control[] { lblDim, _cbDimension, _tree, pnlPlacement, _btnOk, _btnCancel });
+        Controls.AddRange(new Control[] { lblDim, _cbDimension, _tree, _rbRow, _rbCol, _btnOk, _btnCancel });
         AcceptButton = _btnOk;
         CancelButton = _btnCancel;
 
+        LayoutControls();
+        Resize += (_, _) => LayoutControls();
+
         _dimensions = SqliteRepository.Instance.GetDimensions(modelId);
-        foreach (var d in _dimensions)
-            _cbDimension.Items.Add(d.Name);
+        int initialIndex = 0;
+        for (int i = 0; i < _dimensions.Count; i++)
+        {
+            _cbDimension.Items.Add(_dimensions[i].Name);
+            if (_dimensions[i].Id == initialDimensionId)
+                initialIndex = i;
+        }
         if (_cbDimension.Items.Count > 0)
-            _cbDimension.SelectedIndex = 0;
+            _cbDimension.SelectedIndex = initialIndex;
+    }
+
+    private void LayoutControls()
+    {
+        int cw = ClientSize.Width - 40;
+        int lx = 20;
+
+        _cbDimension.Width = cw;
+        _tree.Width = cw;
+        _tree.Height = ClientSize.Height - 170;
+
+        int radioY = ClientSize.Height - 72;
+        _rbRow.Top = radioY;
+        _rbRow.Left = lx;
+        _rbCol.Top = radioY;
+        _rbCol.Left = lx + 200;
+
+        int btnY = ClientSize.Height - 56;
+        _btnCancel.Left = lx + cw - _btnCancel.Width;
+        _btnCancel.Top = btnY;
+        _btnOk.Left = _btnCancel.Left - _btnOk.Width - 10;
+        _btnOk.Top = btnY;
     }
 
     private void LoadTree()

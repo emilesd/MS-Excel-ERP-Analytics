@@ -22,34 +22,32 @@ public class SettingsForm : Form
     public SettingsForm(ModelSettings current)
     {
         Settings = current;
-        AutoScaleMode = AutoScaleMode.Dpi;
-        AutoScaleDimensions = new SizeF(96F, 96F);
+        AutoScaleMode = AutoScaleMode.Font;
         Text = "MyOlap \u2013 Settings";
-        Width = 440;
-        Height = 280;
+        Width = 420;
+        Height = 300;
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
+        Padding = new Padding(24, 20, 24, 16);
 
         _chkOmitRows = new CheckBox
         {
-            Text = "Omit Empty Rows",
-            Left = 20, Top = 20, Width = 360,
+            Text = "Omit Empty Rows", Left = 24, Top = 24, AutoSize = true,
             Checked = current.OmitEmptyRows
         };
 
         _chkOmitCols = new CheckBox
         {
-            Text = "Omit Empty Columns",
-            Left = 20, Top = 52, Width = 360,
+            Text = "Omit Empty Columns", Left = 24, Top = 58, AutoSize = true,
             Checked = current.OmitEmptyColumns
         };
 
-        var lblDisplay = new Label { Text = "Member Display:", Left = 20, Top = 92, Width = 130 };
+        var lblDisplay = new Label { Text = "Member Display:", Left = 24, Top = 100, AutoSize = true };
         _cbDisplay = new ComboBox
         {
-            Left = 155, Top = 90, Width = 240,
+            Left = 24, Top = 130, Width = 340,
             DropDownStyle = ComboBoxStyle.DropDownList
         };
         _cbDisplay.Items.AddRange(new object[] { "Name Only", "Description Only", "Name and Description" });
@@ -57,9 +55,11 @@ public class SettingsForm : Form
 
         _btnOk = new Button
         {
-            Text = "OK", Left = 190, Top = 150, Width = 100, Height = 34,
+            Text = "OK", Width = 100, Height = 34,
             DialogResult = DialogResult.OK
         };
+        _btnOk.Left = 140;
+        _btnOk.Top = 182;
         _btnOk.Click += (_, _) =>
         {
             Settings = new ModelSettings
@@ -73,9 +73,11 @@ public class SettingsForm : Form
 
         _btnCancel = new Button
         {
-            Text = "Cancel", Left = 300, Top = 150, Width = 100, Height = 34,
+            Text = "Cancel", Width = 100, Height = 34,
             DialogResult = DialogResult.Cancel
         };
+        _btnCancel.Left = 252;
+        _btnCancel.Top = 182;
 
         Controls.AddRange(new Control[] { _chkOmitRows, _chkOmitCols, lblDisplay, _cbDisplay, _btnOk, _btnCancel });
         AcceptButton = _btnOk;

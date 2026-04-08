@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.IO;
 using CsvHelper;
 using CsvHelper.Configuration;
@@ -14,6 +14,7 @@ namespace MyOlap.Data;
 public class DataLoader
 {
     private readonly SqliteRepository _repo = SqliteRepository.Instance;
+    public int SkippedRows { get; private set; }
 
     /// <summary>
     /// Column mapping: maps each source-file column index to a dimension ID.
@@ -69,6 +70,7 @@ public class DataLoader
 
         var facts = new List<FactData>();
         int loaded = 0;
+        int skipped = 0;
 
         foreach (var row in rows)
         {
@@ -78,21 +80,25 @@ public class DataLoader
             foreach (var (colIdx, dimId) in mapping.ColumnToDimension)
             {
                 if (colIdx >= row.Count) { skip = true; break; }
-                var memberName = row[colIdx]?.Trim() ?? "";
-                if (string.IsNullOrEmpty(memberName)) { skip = true; break; }
+                var rawName = row[colIdx]?.Trim() ?? "";
+                if (string.IsNullOrEmpty(rawName)) { skip = true; break; }
+
+                var memberName = rawName;
+                if (decimal.TryParse(rawName, System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out var numVal)
+                    && numVal == Math.Truncate(numVal))
+                    memberName = ((long)numVal).ToString();
 
                 var cacheKey = $"{dimId}|{memberName}";
                 if (!memberCache.TryGetValue(cacheKey, out var memberId))
                 {
-                    memberId = _repo.InsertMember(new Member
+                    var altKey = $"{dimId}|{rawName}";
+                    if (!memberCache.TryGetValue(altKey, out memberId))
                     {
-                        DimensionId = dimId,
-                        Name = memberName,
-                        Description = memberName,
-                        Level = 0,
-                        SortOrder = memberCache.Count(kv => kv.Key.StartsWith($"{dimId}|"))
-                    });
-                    memberCache[cacheKey] = memberId;
+                        skip = true;
+                        skipped++;
+                        break;
+                    }
                 }
                 memberIds[dimId] = memberId;
             }
@@ -127,6 +133,8 @@ public class DataLoader
         }
 
         _repo.InsertFactBatch(modelId, facts);
+        if (skipped > 0)
+            SkippedRows = skipped;
         return loaded;
     }
 
@@ -147,14 +155,34 @@ public class DataLoader
     {
         ExcelPackage.License.SetNonCommercialPersonal("MyOlap");
         using var pkg = new ExcelPackage(new FileInfo(filePath));
-        var ws = pkg.Workbook.Worksheets[0];
         var rows = new List<List<string>>();
-        for (int r = 2; r <= ws.Dimension.End.Row; r++)
+        var firstSheet = pkg.Workbook.Worksheets[0];
+        int colCount = firstSheet.Dimension.End.Column;
+        var baseHeaders = new List<string>();
+        for (int c = 1; c <= colCount; c++)
+            baseHeaders.Add(firstSheet.Cells[1, c].Text.Trim().ToLowerInvariant());
+
+        foreach (var ws in pkg.Workbook.Worksheets)
         {
-            var row = new List<string>();
-            for (int c = 1; c <= ws.Dimension.End.Column; c++)
-                row.Add(ws.Cells[r, c].Text);
-            rows.Add(row);
+            if (ws.Dimension == null) continue;
+            bool sameHeaders = ws.Dimension.End.Column == colCount;
+            if (sameHeaders)
+            {
+                for (int c = 1; c <= colCount; c++)
+                {
+                    if (!ws.Cells[1, c].Text.Trim().Equals(baseHeaders[c - 1], StringComparison.OrdinalIgnoreCase))
+                    { sameHeaders = false; break; }
+                }
+            }
+            if (!sameHeaders) continue;
+
+            for (int r = 2; r <= ws.Dimension.End.Row; r++)
+            {
+                var row = new List<string>();
+                for (int c = 1; c <= ws.Dimension.End.Column; c++)
+                    row.Add(ws.Cells[r, c].Text);
+                rows.Add(row);
+            }
         }
         return rows;
     }

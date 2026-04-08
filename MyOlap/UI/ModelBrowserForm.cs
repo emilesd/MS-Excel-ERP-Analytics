@@ -1,11 +1,8 @@
-﻿using System.Windows.Forms;
+using System.Windows.Forms;
 using MyOlap.Data;
 
 namespace MyOlap.UI;
 
-/// <summary>
-/// Dialog for selecting an existing model or creating a new one.
-/// </summary>
 public class ModelBrowserForm : Form
 {
     private readonly ListBox _listBox;
@@ -17,14 +14,15 @@ public class ModelBrowserForm : Form
 
     public long SelectedModelId { get; private set; }
     public bool CreateNew { get; private set; }
+    public long CloneFromId { get; private set; }
 
     public ModelBrowserForm()
     {
-        AutoScaleMode = AutoScaleMode.Dpi;
-        AutoScaleDimensions = new SizeF(96F, 96F);
+        AutoScaleMode = AutoScaleMode.Font;
         Text = "MyOlap \u2013 Select Model";
-        Width = 560;
+        Width = 680;
         Height = 400;
+        MinimumSize = new System.Drawing.Size(680, 400);
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
@@ -33,17 +31,28 @@ public class ModelBrowserForm : Form
         var label = new Label
         {
             Text = "Available Models:",
-            Left = 12, Top = 12, Width = 520, Height = 22
+            Left = 12, Top = 12, AutoSize = true
         };
 
         _listBox = new ListBox
         {
-            Left = 12, Top = 38, Width = 520, Height = 230
+            Left = 12, Top = 44, Width = 636, Height = 224
+        };
+
+        var buttonPanel = new FlowLayoutPanel
+        {
+            Left = 12, Top = 276, Width = 636, Height = 44,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
+            Padding = new Padding(0)
         };
 
         _btnSelect = new Button
         {
-            Text = "Open", Left = 12, Top = 280, Width = 100, Height = 36,
+            Text = "Open", Height = 36, AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowOnly,
+            MinimumSize = new System.Drawing.Size(90, 36),
+            Margin = new Padding(0, 0, 8, 0),
             DialogResult = DialogResult.OK
         };
         _btnSelect.Click += (_, _) =>
@@ -54,23 +63,51 @@ public class ModelBrowserForm : Form
 
         _btnNew = new Button
         {
-            Text = "New Model...", Left = 122, Top = 280, Width = 160, Height = 36
+            Text = "New Model", Height = 36, AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowOnly,
+            MinimumSize = new System.Drawing.Size(90, 36),
+            Margin = new Padding(0, 0, 8, 0)
         };
         _btnNew.Click += (_, _) => { CreateNew = true; DialogResult = DialogResult.OK; Close(); };
 
+        var btnClone = new Button
+        {
+            Text = "Clone", Height = 36, AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowOnly,
+            MinimumSize = new System.Drawing.Size(90, 36),
+            Margin = new Padding(0, 0, 8, 0)
+        };
+        btnClone.Click += (_, _) =>
+        {
+            if (_listBox.SelectedIndex >= 0)
+            {
+                CloneFromId = _models[_listBox.SelectedIndex].Id;
+                CreateNew = true;
+                DialogResult = DialogResult.OK;
+                Close();
+            }
+        };
+
         _btnDelete = new Button
         {
-            Text = "Delete", Left = 292, Top = 280, Width = 100, Height = 36
+            Text = "Delete", Height = 36, AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowOnly,
+            MinimumSize = new System.Drawing.Size(90, 36),
+            Margin = new Padding(0, 0, 8, 0)
         };
         _btnDelete.Click += BtnDelete_Click;
 
         _btnCancel = new Button
         {
-            Text = "Cancel", Left = 402, Top = 280, Width = 100, Height = 36,
+            Text = "Cancel", Height = 36, AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowOnly,
+            MinimumSize = new System.Drawing.Size(90, 36),
+            Margin = new Padding(0, 0, 0, 0),
             DialogResult = DialogResult.Cancel
         };
 
-        Controls.AddRange(new Control[] { label, _listBox, _btnSelect, _btnNew, _btnDelete, _btnCancel });
+        buttonPanel.Controls.AddRange(new Control[] { _btnSelect, _btnNew, btnClone, _btnDelete, _btnCancel });
+        Controls.AddRange(new Control[] { label, _listBox, buttonPanel });
         AcceptButton = _btnSelect;
         CancelButton = _btnCancel;
 
@@ -100,5 +137,3 @@ public class ModelBrowserForm : Form
         }
     }
 }
-
-

@@ -13,11 +13,10 @@ public class DrillOptionsForm : Form
 
     public DrillOptionsForm()
     {
-        AutoScaleMode = AutoScaleMode.Dpi;
-        AutoScaleDimensions = new SizeF(96F, 96F);
+        AutoScaleMode = AutoScaleMode.Font;
         Text = "Drill Down Options";
-        Width = 400;
-        Height = 240;
+        Width = 480;
+        Height = 280;
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
@@ -25,23 +24,23 @@ public class DrillOptionsForm : Form
 
         var rb1 = new RadioButton
         {
-            Text = "Next Generation (children included)",
-            Left = 20, Top = 18, Width = 340, Checked = true
+            Text = "Next Generation",
+            Left = 20, Top = 18, AutoSize = true, Checked = true
         };
         var rb2 = new RadioButton
         {
             Text = "All Generations (full subtree)",
-            Left = 20, Top = 50, Width = 340
+            Left = 20, Top = 52, AutoSize = true
         };
         var rb3 = new RadioButton
         {
             Text = "Base Generation Only (leaves)",
-            Left = 20, Top = 82, Width = 340
+            Left = 20, Top = 86, AutoSize = true
         };
 
         var btnOk = new Button
         {
-            Text = "OK", Left = 150, Top = 126, Width = 100, Height = 34,
+            Text = "OK", Left = 150, Top = 132, Width = 100, Height = 36,
             DialogResult = DialogResult.OK
         };
         btnOk.Click += (_, _) =>
@@ -53,7 +52,7 @@ public class DrillOptionsForm : Form
 
         var btnCancel = new Button
         {
-            Text = "Cancel", Left = 260, Top = 126, Width = 100, Height = 34,
+            Text = "Cancel", Left = 260, Top = 132, Width = 100, Height = 36,
             DialogResult = DialogResult.Cancel
         };
 

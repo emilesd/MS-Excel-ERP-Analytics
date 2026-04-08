@@ -121,7 +121,8 @@ CREATE TABLE IF NOT EXISTS Members (
     Name        TEXT    NOT NULL,
     Description TEXT    NOT NULL DEFAULT '',
     Level       INTEGER NOT NULL DEFAULT 0,
-    SortOrder   INTEGER NOT NULL DEFAULT 0
+    SortOrder       INTEGER NOT NULL DEFAULT 0,
+    ConsolOperator TEXT    NOT NULL DEFAULT '+' 
 );
 
 CREATE TABLE IF NOT EXISTS MemberFilters (
@@ -149,6 +150,15 @@ CREATE TABLE IF NOT EXISTS ModelSettings (
 );
 ";
         cmd.ExecuteNonQuery();
+        using var migCmd = conn.CreateCommand();
+        migCmd.CommandText = "SELECT COUNT(*) FROM pragma_table_info('Members') WHERE name='ConsolOperator'";
+        var hasCol = Convert.ToInt64(migCmd.ExecuteScalar()) > 0;
+        if (!hasCol)
+        {
+            using var alterCmd = conn.CreateCommand();
+            alterCmd.CommandText = "ALTER TABLE Members ADD COLUMN ConsolOperator TEXT NOT NULL DEFAULT '+'";
+            alterCmd.ExecuteNonQuery();
+        }
     }
 
     #region Models
@@ -265,8 +275,8 @@ CREATE TABLE IF NOT EXISTS ModelSettings (
         var conn = GetConnection();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = @"
-INSERT INTO Members (DimensionId, ParentId, Name, Description, Level, SortOrder)
-VALUES ($d, $p, $n, $desc, $l, $s);
+INSERT INTO Members (DimensionId, ParentId, Name, Description, Level, SortOrder, ConsolOperator)
+VALUES ($d, $p, $n, $desc, $l, $s, $co);
 SELECT last_insert_rowid();";
         cmd.Parameters.AddWithValue("$d", member.DimensionId);
         cmd.Parameters.AddWithValue("$p", (object?)member.ParentId ?? DBNull.Value);
@@ -274,6 +284,7 @@ SELECT last_insert_rowid();";
         cmd.Parameters.AddWithValue("$desc", member.Description);
         cmd.Parameters.AddWithValue("$l", member.Level);
         cmd.Parameters.AddWithValue("$s", member.SortOrder);
+        cmd.Parameters.AddWithValue("$co", member.ConsolOperator ?? "+");
         return (long)cmd.ExecuteScalar()!;
     }
 
@@ -282,7 +293,7 @@ SELECT last_insert_rowid();";
         var conn = GetConnection();
         using var cmd = conn.CreateCommand();
         cmd.CommandText =
-            "SELECT Id, DimensionId, ParentId, Name, Description, Level, SortOrder FROM Members WHERE DimensionId = $d ORDER BY SortOrder";
+            "SELECT Id, DimensionId, ParentId, Name, Description, Level, SortOrder, ConsolOperator FROM Members WHERE DimensionId = $d ORDER BY SortOrder";
         cmd.Parameters.AddWithValue("$d", dimensionId);
         using var rdr = cmd.ExecuteReader();
         var list = new List<Member>();
@@ -296,7 +307,8 @@ SELECT last_insert_rowid();";
                 Name = rdr.GetString(3),
                 Description = rdr.GetString(4),
                 Level = rdr.GetInt32(5),
-                SortOrder = rdr.GetInt32(6)
+                SortOrder = rdr.GetInt32(6),
+                ConsolOperator = rdr.IsDBNull(7) ? "+" : rdr.GetString(7)
             });
         }
         return list;
@@ -307,7 +319,7 @@ SELECT last_insert_rowid();";
         var conn = GetConnection();
         using var cmd = conn.CreateCommand();
         cmd.CommandText =
-            "SELECT Id, DimensionId, ParentId, Name, Description, Level, SortOrder FROM Members WHERE ParentId = $p ORDER BY SortOrder";
+            "SELECT Id, DimensionId, ParentId, Name, Description, Level, SortOrder, ConsolOperator FROM Members WHERE ParentId = $p ORDER BY SortOrder";
         cmd.Parameters.AddWithValue("$p", parentId);
         using var rdr = cmd.ExecuteReader();
         var list = new List<Member>();
@@ -321,7 +333,8 @@ SELECT last_insert_rowid();";
                 Name = rdr.GetString(3),
                 Description = rdr.GetString(4),
                 Level = rdr.GetInt32(5),
-                SortOrder = rdr.GetInt32(6)
+                SortOrder = rdr.GetInt32(6),
+                ConsolOperator = rdr.IsDBNull(7) ? "+" : rdr.GetString(7)
             });
         }
         return list;
@@ -332,7 +345,7 @@ SELECT last_insert_rowid();";
         var conn = GetConnection();
         using var cmd = conn.CreateCommand();
         cmd.CommandText =
-            "SELECT Id, DimensionId, ParentId, Name, Description, Level, SortOrder FROM Members WHERE DimensionId = $d AND ParentId IS NULL ORDER BY SortOrder";
+            "SELECT Id, DimensionId, ParentId, Name, Description, Level, SortOrder, ConsolOperator FROM Members WHERE DimensionId = $d AND ParentId IS NULL ORDER BY SortOrder";
         cmd.Parameters.AddWithValue("$d", dimensionId);
         using var rdr = cmd.ExecuteReader();
         var list = new List<Member>();
@@ -346,7 +359,8 @@ SELECT last_insert_rowid();";
                 Name = rdr.GetString(3),
                 Description = rdr.GetString(4),
                 Level = rdr.GetInt32(5),
-                SortOrder = rdr.GetInt32(6)
+                SortOrder = rdr.GetInt32(6),
+                ConsolOperator = rdr.IsDBNull(7) ? "+" : rdr.GetString(7)
             });
         }
         return list;
@@ -375,7 +389,7 @@ SELECT last_insert_rowid();";
         var conn = GetConnection();
         using var cmd = conn.CreateCommand();
         cmd.CommandText =
-            "SELECT Id, DimensionId, ParentId, Name, Description, Level, SortOrder FROM Members WHERE Id = $id";
+            "SELECT Id, DimensionId, ParentId, Name, Description, Level, SortOrder, ConsolOperator FROM Members WHERE Id = $id";
         cmd.Parameters.AddWithValue("$id", memberId);
         using var rdr = cmd.ExecuteReader();
         if (!rdr.Read()) return null;
@@ -387,7 +401,8 @@ SELECT last_insert_rowid();";
             Name = rdr.GetString(3),
             Description = rdr.GetString(4),
             Level = rdr.GetInt32(5),
-            SortOrder = rdr.GetInt32(6)
+            SortOrder = rdr.GetInt32(6),
+            ConsolOperator = rdr.IsDBNull(7) ? "+" : rdr.GetString(7)
         };
     }
 
@@ -396,7 +411,7 @@ SELECT last_insert_rowid();";
         var conn = GetConnection();
         using var cmd = conn.CreateCommand();
         cmd.CommandText =
-            "UPDATE Members SET ParentId=$p, Name=$n, Description=$desc, Level=$l, SortOrder=$s WHERE Id=$id";
+            "UPDATE Members SET ParentId=$p, Name=$n, Description=$desc, Level=$l, SortOrder=$s, ConsolOperator=$co WHERE Id=$id";
         cmd.Parameters.AddWithValue("$p", (object?)m.ParentId ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$n", m.Name);
         cmd.Parameters.AddWithValue("$desc", m.Description);
@@ -406,7 +421,16 @@ SELECT last_insert_rowid();";
         cmd.ExecuteNonQuery();
     }
 
-    public void DeleteMember(long memberId)
+    public void ClearDimensionMembers(long dimensionId)
+    {
+        var conn = GetConnection();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM Members WHERE DimensionId = $d";
+        cmd.Parameters.AddWithValue("$d", dimensionId);
+        cmd.ExecuteNonQuery();
+    }
+
+        public void DeleteMember(long memberId)
     {
         var conn = GetConnection();
         using var cmd = conn.CreateCommand();
@@ -526,6 +550,74 @@ VALUES ($m, $k, $nv, $tv, $dt)";
         };
     }
 
+    public List<FactData> GetAllFacts(long modelId)
+    {
+        var conn = GetConnection();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText =
+            "SELECT Id, ModelId, MemberKey, NumericValue, TextValue, DataType FROM FactData WHERE ModelId = $m";
+        cmd.Parameters.AddWithValue("$m", modelId);
+        using var rdr = cmd.ExecuteReader();
+        var list = new List<FactData>();
+        while (rdr.Read())
+        {
+            list.Add(new FactData
+            {
+                Id = rdr.GetInt64(0),
+                ModelId = rdr.GetInt64(1),
+                MemberKey = rdr.GetString(2),
+                NumericValue = rdr.IsDBNull(3) ? null : (decimal)rdr.GetDouble(3),
+                TextValue = rdr.IsDBNull(4) ? null : rdr.GetString(4),
+                DataType = (MeasureDataType)rdr.GetInt32(5)
+            });
+        }
+        return list;
+    }
+
+    public void ClearFactsByFilter(long modelId, List<long> dimOrder, long? viewMemberId, long? versionMemberId, long? yearMemberId, long? viewDimId, long? versionDimId, long? yearDimId)
+    {
+        var conn = GetConnection();
+        var allFacts = GetAllFacts(modelId);
+
+        var viewIds = BuildMemberSet(viewMemberId);
+        var versionIds = BuildMemberSet(versionMemberId);
+        var yearIds = BuildMemberSet(yearMemberId);
+
+        using var tx = conn.BeginTransaction();
+        foreach (var f in allFacts)
+        {
+            var parts = f.MemberKey.Split('|');
+            var memberMap = new Dictionary<long, long>();
+            for (int i = 0; i < dimOrder.Count && i < parts.Length; i++)
+            {
+                if (long.TryParse(parts[i], out var mid) && mid > 0)
+                    memberMap[dimOrder[i]] = mid;
+            }
+
+            bool matchView = viewDimId == null || viewIds == null || (memberMap.TryGetValue(viewDimId.Value, out var vm) && viewIds.Contains(vm));
+            bool matchVersion = versionDimId == null || versionIds == null || (memberMap.TryGetValue(versionDimId.Value, out var vvm) && versionIds.Contains(vvm));
+            bool matchYear = yearDimId == null || yearIds == null || (memberMap.TryGetValue(yearDimId.Value, out var ym) && yearIds.Contains(ym));
+
+            if (matchView && matchVersion && matchYear)
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.Transaction = tx;
+                cmd.CommandText = "DELETE FROM FactData WHERE Id = @id";
+                cmd.Parameters.AddWithValue("@id", f.Id);
+                cmd.ExecuteNonQuery();
+            }
+        }
+        tx.Commit();
+    }
+
+    private HashSet<long>? BuildMemberSet(long? memberId)
+    {
+        if (!memberId.HasValue) return null;
+        var set = new HashSet<long> { memberId.Value };
+        foreach (var desc in GetAllDescendants(memberId.Value))
+            set.Add(desc.Id);
+        return set;
+    }
     public void ClearFacts(long modelId)
     {
         var conn = GetConnection();

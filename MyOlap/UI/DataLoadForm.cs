@@ -23,37 +23,38 @@ public class DataLoadForm : Form
     public DataLoadForm(long modelId)
     {
         _modelId = modelId;
-        AutoScaleMode = AutoScaleMode.Dpi;
-        AutoScaleDimensions = new SizeF(96F, 96F);
+        AutoScaleMode = AutoScaleMode.Font;
         Text = "MyOlap \u2013 Load Data";
-        Width = 700;
-        Height = 520;
+        Width = 860;
+        Height = 560;
+        MinimumSize = new System.Drawing.Size(860, 560);
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
 
-        var lblFile = new Label { Text = "Data File:", Left = 12, Top = 14, Width = 80 };
-        _txtFile = new TextBox { Left = 95, Top = 12, Width = 480, ReadOnly = true };
-        _btnBrowse = new Button { Text = "\u2026", Left = 582, Top = 10, Width = 50, Height = 28 };
+        var lblFile = new Label { Text = "Data File:", Left = 12, Top = 14, AutoSize = true };
+        _txtFile = new TextBox { Left = 120, Top = 12, Width = 590, ReadOnly = true };
+        _btnBrowse = new Button { Text = "\u2026", Left = 720, Top = 10, Width = 50, Height = 28 };
         _btnBrowse.Click += BtnBrowse_Click;
 
-        var lblMap = new Label { Text = "Column \u2192 Dimension Mapping:", Left = 12, Top = 50, Width = 350 };
+        var lblMap = new Label { Text = "Column \u2192 Dimension Mapping:", Left = 12, Top = 50, AutoSize = true };
         _dgvMapping = new DataGridView
         {
-            Left = 12, Top = 74, Width = 654, Height = 300,
+            Left = 12, Top = 74, Width = 810, Height = 300,
             AllowUserToAddRows = false,
             AllowUserToDeleteRows = false,
-            SelectionMode = DataGridViewSelectionMode.FullRowSelect
+            SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+            ScrollBars = ScrollBars.Vertical
         };
         _dgvMapping.Columns.Add("Column", "File Column");
-        _dgvMapping.Columns[0].Width = 200;
+        _dgvMapping.Columns[0].Width = 220;
         _dgvMapping.Columns[0].ReadOnly = true;
 
         var dimCol = new DataGridViewComboBoxColumn
         {
             Name = "Dimension",
-            HeaderText = "Map To Dimension",
-            Width = 220
+            HeaderText = "Map To",
+            Width = 250
         };
         _dgvMapping.Columns.Add(dimCol);
 
@@ -61,21 +62,21 @@ public class DataLoadForm : Form
         {
             Name = "Role",
             HeaderText = "Role",
-            Width = 160
+            AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill
         };
         typeCol.Items.AddRange("Dimension", "Value (Numeric)", "Value (Text)", "(Skip)");
         _dgvMapping.Columns.Add(typeCol);
 
-        _btnLoad = new Button { Text = "Load Data", Left = 450, Top = 388, Width = 120, Height = 34 };
+        _btnLoad = new Button { Text = "Load Data", Left = 570, Top = 388, Width = 140, Height = 36 };
         _btnLoad.Click += BtnLoad_Click;
 
         _btnCancel = new Button
         {
-            Text = "Cancel", Left = 580, Top = 388, Width = 100, Height = 34,
+            Text = "Cancel", Left = 720, Top = 388, Width = 100, Height = 36,
             DialogResult = DialogResult.Cancel
         };
 
-        _lblStatus = new Label { Text = "", Left = 12, Top = 432, Width = 654, Height = 26 };
+        _lblStatus = new Label { Text = "", Left = 12, Top = 440, AutoSize = true, MaximumSize = new System.Drawing.Size(800, 0) };
 
         Controls.AddRange(new Control[]
         {
@@ -104,6 +105,17 @@ public class DataLoadForm : Form
         _dgvMapping.Rows.Clear();
         var dimNames = _dims.Select(d => d.Name).ToList();
 
+        var aliases = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Account"] = "Measure",
+            ["Accounts"] = "Measure",
+            ["Period"] = "Time",
+            ["Month"] = "Time",
+            ["Scenario"] = "View",
+            ["Entity"] = "BU",
+            ["Department"] = "BU"
+        };
+
         foreach (var h in _headers)
         {
             var rowIdx = _dgvMapping.Rows.Add();
@@ -115,9 +127,29 @@ public class DataLoadForm : Form
             dimCell.Items.Add("(none)");
             foreach (var dn in dimNames)
                 dimCell.Items.Add(dn);
-            dimCell.Value = "(none)";
 
-            row.Cells["Role"].Value = "(Skip)";
+            var headerNorm = h.Trim();
+            if (headerNorm.Equals("Value", StringComparison.OrdinalIgnoreCase)
+                || headerNorm.Equals("Amount", StringComparison.OrdinalIgnoreCase))
+            {
+                dimCell.Value = "(none)";
+                row.Cells["Role"].Value = "Value (Numeric)";
+            }
+            else
+            {
+                var lookupName = aliases.TryGetValue(headerNorm, out var alias) ? alias : headerNorm;
+                var matched = dimNames.FirstOrDefault(d => d.Equals(lookupName, StringComparison.OrdinalIgnoreCase));
+                if (matched != null)
+                {
+                    dimCell.Value = matched;
+                    row.Cells["Role"].Value = "Dimension";
+                }
+                else
+                {
+                    dimCell.Value = "(none)";
+                    row.Cells["Role"].Value = "(Skip)";
+                }
+            }
         }
     }
 
@@ -161,16 +193,20 @@ public class DataLoadForm : Form
         mapping.ValueColumnIndex = valueCol;
         mapping.ValueIsText = valueIsText;
 
-        _lblStatus.Text = "Loading…";
+        _lblStatus.Text = "Loading\u2026";
         Application.DoEvents();
 
         try
         {
             var loader = new DataLoader();
             var count = loader.LoadData(_filePath, _modelId, mapping);
+            var msg = $"Successfully loaded {count:N0} records.";
+            if (loader.SkippedRows > 0)
+                msg += $"\n{loader.SkippedRows:N0} rows skipped (member names not found in dimensions).\nMake sure to load dimensions before loading data.";
             _lblStatus.Text = $"Loaded {count:N0} records.";
-            MessageBox.Show($"Successfully loaded {count:N0} records.", "Done",
-                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(msg, "Done",
+                MessageBoxButtons.OK, loader.SkippedRows > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
+            DialogResult = DialogResult.OK;
         }
         catch (Exception ex)
         {

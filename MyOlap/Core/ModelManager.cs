@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using MyOlap.Data;
 using OfficeOpenXml;
 
@@ -34,6 +34,57 @@ public class ModelManager
     ///   Sheet "Dimensions": Name | Type | SortOrder
     ///   Sheet "Members":    DimensionName | MemberName | ParentName | Description | Level
     /// </summary>
+    public long CloneModel(long sourceModelId, string newName)
+    {
+        var newModelId = CreateEmptyModel(newName);
+        var sourceDims = _repo.GetDimensions(sourceModelId);
+        var newDims = _repo.GetDimensions(newModelId);
+        var dimMap = new Dictionary<long, long>();
+        foreach (var sd in sourceDims)
+        {
+            var nd = newDims.FirstOrDefault(d => d.Name.Equals(sd.Name, StringComparison.OrdinalIgnoreCase));
+            if (nd == null)
+            {
+                nd = new Dimension { ModelId = newModelId, Name = sd.Name, DimType = sd.DimType, SortOrder = sd.SortOrder };
+                nd.Id = _repo.InsertDimension(nd);
+            }
+            dimMap[sd.Id] = nd.Id;
+        }
+        foreach (var sd in sourceDims)
+        {
+            var members = _repo.GetMembers(sd.Id);
+            var memberMap = new Dictionary<long, long>();
+            foreach (var m in members.Where(m => m.ParentId == null))
+                CloneMemberTree(m, null, dimMap[sd.Id], memberMap);
+            foreach (var m in members.Where(m => m.ParentId != null))
+            {
+                if (memberMap.ContainsKey(m.Id)) continue;
+                long? newParent = m.ParentId.HasValue && memberMap.ContainsKey(m.ParentId.Value) ? memberMap[m.ParentId.Value] : null;
+                CloneMemberTree(m, newParent, dimMap[sd.Id], memberMap);
+            }
+        }
+        return newModelId;
+    }
+
+    private void CloneMemberTree(Member source, long? newParentId, long newDimId, Dictionary<long, long> memberMap)
+    {
+        if (memberMap.ContainsKey(source.Id)) return;
+        var newId = _repo.InsertMember(new Member
+        {
+            DimensionId = newDimId,
+            ParentId = newParentId,
+            Name = source.Name,
+            Description = source.Description,
+            Level = source.Level,
+            SortOrder = source.SortOrder,
+            ConsolOperator = source.ConsolOperator
+        });
+        memberMap[source.Id] = newId;
+        var children = _repo.GetChildren(source.Id);
+        foreach (var child in children)
+            CloneMemberTree(child, newId, newDimId, memberMap);
+    }
+
     public long CreateModelFromWorkbook(string filePath, string modelName)
     {
         ExcelPackage.License.SetNonCommercialPersonal("MyOlap");

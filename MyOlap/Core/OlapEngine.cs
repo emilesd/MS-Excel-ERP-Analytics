@@ -16,6 +16,23 @@ public class OlapEngine
 
     public ViewState? CurrentView { get; private set; }
     public OlapModel? ActiveModel { get; private set; }
+    private readonly Dictionary<string, ViewState> _sheetViews = new();
+
+    public void SaveViewForSheet(string sheetName)
+    {
+        if (CurrentView != null && !string.IsNullOrEmpty(sheetName))
+            _sheetViews[sheetName] = CurrentView.Clone();
+    }
+
+    public bool RestoreViewForSheet(string sheetName)
+    {
+        if (!string.IsNullOrEmpty(sheetName) && _sheetViews.TryGetValue(sheetName, out var view))
+        {
+            CurrentView = view;
+            return true;
+        }
+        return false;
+    }
 
     /// <summary>
     /// Opens a model and builds the default view:
@@ -110,6 +127,9 @@ public class OlapEngine
             colMembers.Add(members);
         }
 
+        for (int i = 0; i < rowMembers.Count; i++)
+            rowMembers[i] = ReorderBottomUp(rowMembers[i]);
+
         var rowCombos = CartesianProduct(rowMembers);
         var colCombos = CartesianProduct(colMembers);
 
@@ -123,20 +143,99 @@ public class OlapEngine
 
         result.Values = new decimal?[rowCombos.Count, colCombos.Count];
 
+        var allFacts = _repo.GetAllFacts(CurrentView.ModelId);
+        var parsedFacts = new List<(FactData fact, Dictionary<long, long> members)>();
+        foreach (var f in allFacts)
+        {
+            var parts = f.MemberKey.Split('|');
+            var memberMap = new Dictionary<long, long>();
+            for (int i = 0; i < dimOrder.Count && i < parts.Length; i++)
+            {
+                if (long.TryParse(parts[i], out var mid) && mid > 0)
+                    memberMap[dimOrder[i]] = mid;
+            }
+            parsedFacts.Add((f, memberMap));
+        }
+
+        var descendantCache = new Dictionary<long, Dictionary<long, int>>();
+        void EnsureDescendants(long memberId)
+        {
+            if (descendantCache.ContainsKey(memberId)) return;
+            var signs = new Dictionary<long, int>();
+            signs[memberId] = 1;
+
+            void BuildSigns(long parentId, int parentSign)
+            {
+                var children = _repo.GetChildren(parentId);
+                foreach (var child in children)
+                {
+                    int childSign;
+                    if (child.ConsolOperator == "x") childSign = 0;
+                    else if (child.ConsolOperator == "-") childSign = parentSign * -1;
+                    else childSign = parentSign;
+
+                    signs[child.Id] = childSign;
+                    BuildSigns(child.Id, childSign);
+                }
+            }
+
+            BuildSigns(memberId, 1);
+            descendantCache[memberId] = signs;
+        }
+
+        foreach (var mid in CurrentView.PovSelections.Values)
+            EnsureDescendants(mid);
+        foreach (var combo in rowCombos)
+            foreach (var m in combo)
+                EnsureDescendants(m.Id);
+        foreach (var combo in colCombos)
+            foreach (var m in combo)
+                EnsureDescendants(m.Id);
+
         for (int r = 0; r < rowCombos.Count; r++)
         {
             for (int c = 0; c < colCombos.Count; c++)
             {
-                var memberIds = new Dictionary<long, long>(CurrentView.PovSelections);
+                var cellMembers = new Dictionary<long, long>(CurrentView.PovSelections);
 
                 foreach (var (axis, idx) in CurrentView.RowAxes.Select((a, i) => (a, i)))
-                    memberIds[axis.DimensionId] = rowCombos[r][idx].Id;
+                    cellMembers[axis.DimensionId] = rowCombos[r][idx].Id;
 
                 foreach (var (axis, idx) in CurrentView.ColAxes.Select((a, i) => (a, i)))
-                    memberIds[axis.DimensionId] = colCombos[c][idx].Id;
+                    cellMembers[axis.DimensionId] = colCombos[c][idx].Id;
 
-                var key = BuildMemberKey(dimOrder, memberIds);
-                result.Values[r, c] = _repo.GetFactValue(CurrentView.ModelId, key);
+                decimal total = 0;
+                bool anyValue = false;
+
+                foreach (var (fact, factMembers) in parsedFacts)
+                {
+                    if (!fact.NumericValue.HasValue) continue;
+
+                    bool match = true;
+                    int netSign = 1;
+                    foreach (var (dimId, targetMemberId) in cellMembers)
+                    {
+                        if (!factMembers.TryGetValue(dimId, out var factMemberId))
+                        {
+                            continue;
+                        }
+                        var signMap = descendantCache[targetMemberId];
+                        if (!signMap.TryGetValue(factMemberId, out var sign))
+                        {
+                            match = false;
+                            break;
+                        }
+                        if (sign == 0) { match = false; break; }
+                        netSign *= sign;
+                    }
+                    if (match)
+                    {
+                        total += fact.NumericValue.Value * netSign;
+                        anyValue = true;
+                    }
+                }
+
+                result.Values[r, c] = anyValue ? total : null;
             }
         }
 
@@ -213,6 +312,7 @@ public class OlapEngine
         }
 
         if (replacementIds.Count == 0) return;
+        if (mode == DrillMode.AllGenerations || mode == DrillMode.NextGeneration) replacementIds.Insert(0, memberId);
 
         ReplaceInAxes(CurrentView.RowAxes, dimensionId, memberId, replacementIds);
         ReplaceInAxes(CurrentView.ColAxes, dimensionId, memberId, replacementIds);
@@ -252,6 +352,37 @@ public class OlapEngine
         if (CurrentView == null) return;
         PushUndo();
         (CurrentView.RowAxes, CurrentView.ColAxes) = (CurrentView.ColAxes, CurrentView.RowAxes);
+    }
+    public void SwapDimension(long dimensionId)
+    {
+        if (CurrentView == null) return;
+        PushUndo();
+
+        var rowAxis = CurrentView.RowAxes.FirstOrDefault(a => a.DimensionId == dimensionId);
+        var colAxis = CurrentView.ColAxes.FirstOrDefault(a => a.DimensionId == dimensionId);
+
+        if (rowAxis != null)
+        {
+            CurrentView.RowAxes.Remove(rowAxis);
+            CurrentView.ColAxes.Add(rowAxis);
+        }
+        else if (colAxis != null)
+        {
+            CurrentView.ColAxes.Remove(colAxis);
+            CurrentView.RowAxes.Add(colAxis);
+        }
+        else if (CurrentView.PovSelections.TryGetValue(dimensionId, out var povMemberId))
+        {
+            CurrentView.PovSelections.Remove(dimensionId);
+            var dim = _repo.GetDimensions(CurrentView.ModelId).FirstOrDefault(d => d.Id == dimensionId);
+            var roots = _repo.GetRootMembers(dimensionId);
+            CurrentView.ColAxes.Add(new DimensionAxis
+            {
+                DimensionId = dimensionId,
+                DimensionName = dim?.Name ?? "Unknown",
+                VisibleMemberIds = roots.Select(r => r.Id).ToList()
+            });
+        }
     }
 
     /// <summary>
@@ -357,6 +488,60 @@ public class OlapEngine
     /// <summary>
     /// Computes the cartesian product of member lists (one per dimension on an axis).
     /// </summary>
+    /// <summary>
+    /// Reorders members so children appear before their parents (bottom-up / post-order).
+    /// Parents act as subtotals at the bottom of their group.
+    /// Falls back to original order if anything goes wrong.
+    /// </summary>
+    private static List<Member> ReorderBottomUp(List<Member> members)
+    {
+        if (members.Count <= 1) return members;
+
+        try
+        {
+            var idSet = new HashSet<long>(members.Select(m => m.Id));
+            var childrenOf = new Dictionary<long, List<Member>>();
+            var roots = new List<Member>();
+
+            foreach (var m in members)
+            {
+                if (m.ParentId.HasValue && idSet.Contains(m.ParentId.Value))
+                {
+                    if (!childrenOf.ContainsKey(m.ParentId.Value))
+                        childrenOf[m.ParentId.Value] = new List<Member>();
+                    childrenOf[m.ParentId.Value].Add(m);
+                }
+                else
+                {
+                    roots.Add(m);
+                }
+            }
+
+            if (childrenOf.Count == 0) return members;
+
+            var result = new List<Member>();
+            var visited = new HashSet<long>();
+
+            void PostOrder(Member m)
+            {
+                if (!visited.Add(m.Id)) return;
+                if (childrenOf.TryGetValue(m.Id, out var kids))
+                    foreach (var kid in kids)
+                        PostOrder(kid);
+                result.Add(m);
+            }
+
+            foreach (var root in roots)
+                PostOrder(root);
+
+            return result.Count == members.Count ? result : members;
+        }
+        catch
+        {
+            return members;
+        }
+    }
+
     private static List<List<Member>> CartesianProduct(List<List<Member>> lists)
     {
         if (lists.Count == 0)

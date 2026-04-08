@@ -1,4 +1,4 @@
-using ExcelDna.Integration;
+﻿using ExcelDna.Integration;
 using MyOlap.Core;
 using MyOlap.Data;
 using MyOlap.Reports;

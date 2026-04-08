@@ -1,4 +1,4 @@
-namespace MyOlap.Data;
+﻿namespace MyOlap.Data;
 
 /// <summary>
 /// Dimension type flags matching the product brief:
@@ -47,6 +47,7 @@ public class Dimension
     public string Name { get; set; } = string.Empty;
     public DimensionType DimType { get; set; }
     public int SortOrder { get; set; }
+    public string ConsolOperator { get; set; } = "+";
 }
 
 public class Member
@@ -58,6 +59,7 @@ public class Member
     public string Description { get; set; } = string.Empty;
     public int Level { get; set; }
     public int SortOrder { get; set; }
+    public string ConsolOperator { get; set; } = "+";
 }
 
 /// <summary>
