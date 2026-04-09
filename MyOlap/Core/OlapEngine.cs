@@ -86,7 +86,10 @@ public class OlapEngine
             if (d.Id == measureDim?.Id || d.Id == timeDim?.Id) continue;
             var roots = _repo.GetRootMembers(d.Id);
             if (roots.Count > 0)
-                view.PovSelections[d.Id] = roots[0].Id;
+            {
+                var best = roots.FirstOrDefault(r => _repo.GetChildren(r.Id).Count > 0) ?? roots[0];
+                view.PovSelections[d.Id] = best.Id;
+            }
         }
 
         CurrentView = view;

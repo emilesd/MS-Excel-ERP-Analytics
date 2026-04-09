@@ -1,4 +1,4 @@
-using System.Windows.Forms;
+﻿using System.Windows.Forms;
 using System.Globalization;
 using System.IO;
 using MyOlap.Data;
@@ -280,7 +280,7 @@ public class LoadDimensionForm : Form
                 var child = csv.GetField(childCol)?.Trim() ?? "";
                 var desc = descCol >= 0 ? (csv.GetField(descCol)?.Trim() ?? "") : "";
                 var consolOp = opCol >= 0 ? (csv.GetField(opCol)?.Trim() ?? "+") : "+";
-                if (!string.IsNullOrEmpty(child))
+                if (!string.IsNullOrEmpty(child) && !parent.Equals(child, StringComparison.OrdinalIgnoreCase))
                     rows.Add((parent, child, desc, consolOp));
             }
         }
@@ -297,7 +297,7 @@ public class LoadDimensionForm : Form
                 var child = ws.Cells[r, childCol + 1].Text.Trim();
                 var desc = descCol >= 0 ? ws.Cells[r, descCol + 1].Text.Trim() : "";
                 var consolOp = opCol >= 0 ? ws.Cells[r, opCol + 1].Text.Trim() : "+";
-                if (!string.IsNullOrEmpty(child))
+                if (!string.IsNullOrEmpty(child) && !parent.Equals(child, StringComparison.OrdinalIgnoreCase))
                     rows.Add((parent, child, desc, consolOp));
             }
         }
@@ -333,19 +333,32 @@ public class LoadDimensionForm : Form
             var rows = ReadRows();
             var repo = SqliteRepository.Instance;
 
-            repo.ClearDimensionMembers(dim.Id);
-
+            var existing = repo.GetMembersByNameForDimension(dim.Id);
             var memberMap = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+            foreach (var kvp in existing)
+                memberMap[kvp.Key] = kvp.Value.Id;
 
             var allChildren = new HashSet<string>(rows.Select(r => r.child), StringComparer.OrdinalIgnoreCase);
             var allParents = new HashSet<string>(rows.Select(r => r.parent).Where(p => !string.IsNullOrEmpty(p)), StringComparer.OrdinalIgnoreCase);
             var rootNames = allParents.Except(allChildren, StringComparer.OrdinalIgnoreCase).ToList();
 
             int order = 0;
+            int inserted = 0;
+            int updated = 0;
 
             foreach (var rootName in rootNames)
             {
-                if (!memberMap.ContainsKey(rootName))
+                if (existing.TryGetValue(rootName, out var ex))
+                {
+                    ex.ParentId = null;
+                    ex.Description = rootName;
+                    ex.Level = 0;
+                    ex.SortOrder = order++;
+                    repo.UpdateMember(ex);
+                    memberMap[rootName] = ex.Id;
+                    updated++;
+                }
+                else if (!memberMap.ContainsKey(rootName))
                 {
                     var id = repo.InsertMember(new Member
                     {
@@ -356,10 +369,10 @@ public class LoadDimensionForm : Form
                         SortOrder = order++
                     });
                     memberMap[rootName] = id;
+                    inserted++;
                 }
             }
 
-            int loaded = 0;
             var processed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var queue = new Queue<string>(rootNames);
 
@@ -371,21 +384,37 @@ public class LoadDimensionForm : Form
                 var children = rows.Where(r => r.parent.Equals(parentName, StringComparison.OrdinalIgnoreCase)).ToList();
                 foreach (var (_, childName, desc, op) in children)
                 {
-                    if (!memberMap.ContainsKey(childName))
+                    if (childName.Equals(parentName, StringComparison.OrdinalIgnoreCase)) continue;
+                    var resolvedDesc = string.IsNullOrEmpty(desc) ? childName : desc;
+                    var resolvedOp = NormalizeOp(op);
+                    var parentMember = repo.GetMember(parentId);
+                    int level = (parentMember?.Level ?? 0) + 1;
+
+                    if (existing.TryGetValue(childName, out var exChild))
                     {
-                        var parentMember = repo.GetMember(parentId);
+                        exChild.ParentId = parentId;
+                        exChild.Description = resolvedDesc;
+                        exChild.Level = level;
+                        exChild.SortOrder = order++;
+                        exChild.ConsolOperator = resolvedOp;
+                        repo.UpdateMember(exChild);
+                        memberMap[childName] = exChild.Id;
+                        updated++;
+                    }
+                    else if (!memberMap.ContainsKey(childName))
+                    {
                         var id = repo.InsertMember(new Member
                         {
                             DimensionId = dim.Id,
                             ParentId = parentId,
                             Name = childName,
-                            Description = string.IsNullOrEmpty(desc) ? childName : desc,
-                            Level = (parentMember?.Level ?? 0) + 1,
+                            Description = resolvedDesc,
+                            Level = level,
                             SortOrder = order++,
-                            ConsolOperator = NormalizeOp(op)
+                            ConsolOperator = resolvedOp
                         });
                         memberMap[childName] = id;
-                        loaded++;
+                        inserted++;
                     }
 
                     if (!processed.Contains(childName))
@@ -400,26 +429,42 @@ public class LoadDimensionForm : Form
             {
                 if (!memberMap.ContainsKey(row.child))
                 {
-                    long? pid = string.IsNullOrEmpty(row.parent) ? null : 
+                    long? pid = string.IsNullOrEmpty(row.parent) ? null :
                         memberMap.TryGetValue(row.parent, out var pv) ? pv : null;
                     var parentMember = pid.HasValue ? repo.GetMember(pid.Value) : null;
-                    var id = repo.InsertMember(new Member
+                    var resolvedDesc = string.IsNullOrEmpty(row.desc) ? row.child : row.desc;
+
+                    if (existing.TryGetValue(row.child, out var exOrphan))
                     {
-                        DimensionId = dim.Id,
-                        ParentId = pid,
-                        Name = row.child,
-                        Description = string.IsNullOrEmpty(row.desc) ? row.child : row.desc,
-                        Level = (parentMember?.Level ?? 0) + 1,
-                        SortOrder = order++,
-                        ConsolOperator = NormalizeOp(row.consolOp)
-                    });
-                    memberMap[row.child] = id;
-                    loaded++;
+                        exOrphan.ParentId = pid;
+                        exOrphan.Description = resolvedDesc;
+                        exOrphan.Level = (parentMember?.Level ?? 0) + 1;
+                        exOrphan.SortOrder = order++;
+                        exOrphan.ConsolOperator = NormalizeOp(row.consolOp);
+                        repo.UpdateMember(exOrphan);
+                        memberMap[row.child] = exOrphan.Id;
+                        updated++;
+                    }
+                    else
+                    {
+                        var id = repo.InsertMember(new Member
+                        {
+                            DimensionId = dim.Id,
+                            ParentId = pid,
+                            Name = row.child,
+                            Description = resolvedDesc,
+                            Level = (parentMember?.Level ?? 0) + 1,
+                            SortOrder = order++,
+                            ConsolOperator = NormalizeOp(row.consolOp)
+                        });
+                        memberMap[row.child] = id;
+                        inserted++;
+                    }
                 }
             }
 
-            _lblStatus.Text = $"Loaded {loaded} members.";
-            MessageBox.Show($"Successfully loaded {loaded} members into '{dim.Name}'.",
+            _lblStatus.Text = $"Done: {inserted} new, {updated} updated.";
+            MessageBox.Show($"Dimension '{dim.Name}': {inserted} new members added, {updated} existing members updated.\nFact data has been preserved.",
                 "Done", MessageBoxButtons.OK, MessageBoxIcon.Information);
             DialogResult = DialogResult.OK;
         }

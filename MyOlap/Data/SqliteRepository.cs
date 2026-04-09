@@ -417,8 +417,21 @@ SELECT last_insert_rowid();";
         cmd.Parameters.AddWithValue("$desc", m.Description);
         cmd.Parameters.AddWithValue("$l", m.Level);
         cmd.Parameters.AddWithValue("$s", m.SortOrder);
+        cmd.Parameters.AddWithValue("$co", m.ConsolOperator ?? "+");
         cmd.Parameters.AddWithValue("$id", m.Id);
         cmd.ExecuteNonQuery();
+    }
+
+    public Dictionary<string, Member> GetMembersByNameForDimension(long dimensionId)
+    {
+        var result = new Dictionary<string, Member>(StringComparer.OrdinalIgnoreCase);
+        var members = GetMembers(dimensionId);
+        foreach (var m in members)
+        {
+            if (!result.ContainsKey(m.Name))
+                result[m.Name] = m;
+        }
+        return result;
     }
 
     public void ClearDimensionMembers(long dimensionId)
