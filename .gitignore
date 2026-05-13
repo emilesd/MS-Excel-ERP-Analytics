@@ -21,10 +21,17 @@ Thumbs.db
 Desktop.ini
 .DS_Store
 
-# Generated test PDFs
-TestData/*.pdf
+# Excel add-in staging / release artifacts (built from source, not source)
+/AddIn/
+/Deployed/
+/*.xll
+/*.dll
 
-# Private/sensitive files
+# Large or sensitive test fixtures (kept locally only)
+TestData/Sales_Data ERP.xlsx
+TestData/Backup/
+
+# Private / sensitive files
 JobPostAndChattinglog.txt
 MyOlap - Product Notes v1.2.pdf
 
@@ -32,14 +39,26 @@ MyOlap - Product Notes v1.2.pdf
 meetinglog-*.txt
 chatting_history.md
 
-# Internal feedback docs
+# Internal feedback drafts (the final feedback.pdf in Docs/ is committed)
 feedback-copy.pdf
 MyOlap - Feedback Updates and Fixes.pdf
 
-# Temporary screenshots at root level
+# Temporary screenshots / scratch files at root level
 /current_state.png
 /screenshot.png
 /screenshot_desktop.png
+/screenshot_excel.png
 /select_model.png
 /ribbon.png
 /myolap_ribbon.png
+/ss_*.png
+/ss_*.txt
+/*_done.txt
+/*_log*.txt
+/ui_results*.txt
+/temp_*_cache.txt
+/new[0-9]*.txt
+/old[0-9]*.txt
+/MyOlap_SelfTest_*.pdf
+/dbquery.cs
+/query.csx
