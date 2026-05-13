@@ -1,4 +1,4 @@
-# Build output
+# .NET build output
 bin/
 obj/
 publish/
@@ -8,57 +8,38 @@ publish/
 *.user
 *.suo
 
-# NuGet
-packages/
+# OS
+Thumbs.db
+.DS_Store
 
-# Database files (generated at runtime)
+# Runtime SQLite database (per-user, never committed)
 *.db
 *.db-shm
 *.db-wal
 
-# OS
-Thumbs.db
-Desktop.ini
-.DS_Store
-
-# Excel add-in staging / release artifacts (built from source, not source)
+# Excel add-in runtime / staging (rebuilt by LaunchMyOlap.bat)
 /AddIn/
 /Deployed/
-/*.xll
-/*.dll
 
 # Large or sensitive test fixtures (kept locally only)
 TestData/Sales_Data ERP.xlsx
 TestData/Backup/
 
-# Private / sensitive files
-JobPostAndChattinglog.txt
-MyOlap - Product Notes v1.2.pdf
-
-# Meeting logs and chat history
-meetinglog-*.txt
+# Private notes, meeting logs, chat transcripts, internal feedback drafts
+chattinglog.md
 chatting_history.md
-
-# Internal feedback drafts (the final feedback.pdf in Docs/ is committed)
+meetinglog-*.txt
+JobPostAndChattinglog.txt
 feedback-copy.pdf
+MyOlap - Product Notes v1.2.pdf
 MyOlap - Feedback Updates and Fixes.pdf
 
-# Temporary screenshots / scratch files at root level
-/current_state.png
-/screenshot.png
-/screenshot_desktop.png
-/screenshot_excel.png
-/select_model.png
-/ribbon.png
-/myolap_ribbon.png
-/ss_*.png
-/ss_*.txt
+# Root-level scratch artifacts (screenshots, dev logs, completion markers)
+/*.png
 /*_done.txt
 /*_log*.txt
 /ui_results*.txt
-/temp_*_cache.txt
-/new[0-9]*.txt
-/old[0-9]*.txt
+/temp_*.txt
 /MyOlap_SelfTest_*.pdf
 /dbquery.cs
 /query.csx
