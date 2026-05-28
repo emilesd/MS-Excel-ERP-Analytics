@@ -6,83 +6,106 @@ namespace MyOlap.UI;
 
 public class MemberPickerForm : Form
 {
-    private readonly TreeView _tree;
     private readonly ComboBox _cbDimension;
+    private readonly TextBox _txtSearch;
+    private readonly TreeView _tree;
+    private readonly ListBox _lbSelected;
+    private readonly Button _btnAdd;
+    private readonly Button _btnRemove;
+    private readonly Button _btnMoveUp;
+    private readonly Button _btnMoveDown;
+    private readonly Button _btnClear;
+    private readonly Button _btnRefresh;
     private readonly RadioButton _rbRow;
     private readonly RadioButton _rbCol;
     private readonly Button _btnOk;
     private readonly Button _btnCancel;
-    private List<Dimension> _dimensions = new();
 
-    public long SelectedMemberId { get; private set; }
+    private List<Dimension> _dimensions = new();
+    private List<DimensionTreeNode> _currentRoots = new();
+    private readonly List<(long Id, string Name)> _selectedMembers = new();
+
+    public List<long> SelectedMemberIds => _selectedMembers.Select(m => m.Id).ToList();
     public long SelectedDimensionId { get; private set; }
     public bool PlaceOnRow => _rbRow.Checked;
+    public bool RefreshRequested { get; private set; }
+
+    [Obsolete("Use SelectedMemberIds instead")]
+    public long SelectedMemberId => _selectedMembers.Count > 0 ? _selectedMembers[0].Id : 0;
 
     public MemberPickerForm(long modelId, long initialDimensionId = 0)
     {
         AutoScaleMode = AutoScaleMode.Font;
-        Text = "MyOlap \u2013 Pick Member";
-        Width = 780;
-        Height = 700;
+        Text = "Member Selection";
+        Width = 1380;
+        Height = 1400;
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.Sizable;
         MaximizeBox = true;
         MinimizeBox = false;
-        MinimumSize = new System.Drawing.Size(400, 400);
+        MinimumSize = new System.Drawing.Size(780, 520);
 
-        int lx = 20;
+        _cbDimension = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
+        _cbDimension.SelectedIndexChanged += (_, _) => OnDimensionChanged();
 
-        var lblDim = new Label
-        {
-            Text = "Dimension:", Left = lx, Top = 20, AutoSize = true
-        };
-
-        _cbDimension = new ComboBox
-        {
-            Left = lx, Top = 48, DropDownStyle = ComboBoxStyle.DropDownList,
-            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
-        };
-        _cbDimension.SelectedIndexChanged += (_, _) => LoadTree();
+        _txtSearch = new TextBox();
+        _txtSearch.TextChanged += (_, _) => ApplySearchFilter();
 
         _tree = new TreeView
         {
-            Left = lx, Top = 88, HideSelection = false, Scrollable = true,
-            Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right
+            CheckBoxes = true,
+            HideSelection = false,
+            Scrollable = true,
+            ShowPlusMinus = true,
+            ShowLines = true,
+            ShowRootLines = true
         };
+        _tree.NodeMouseDoubleClick += (_, e) => AddSingleNodeFromTree(e.Node);
+        _tree.AfterCheck += OnTreeAfterCheck;
 
-        _rbRow = new RadioButton
-        {
-            Text = "Place on Rows", Left = lx, AutoSize = true, Checked = true,
-            Anchor = AnchorStyles.Bottom | AnchorStyles.Left
-        };
-        _rbCol = new RadioButton
-        {
-            Text = "Place on Columns", AutoSize = true,
-            Anchor = AnchorStyles.Bottom | AnchorStyles.Left
-        };
+        _btnAdd = new Button { Text = "\u25B6", Width = 44, Height = 36, Font = new System.Drawing.Font("Segoe UI", 12f) };
+        _btnAdd.Click += (_, _) => AddCheckedFromTree();
 
-        _btnOk = new Button
-        {
-            Text = "OK", Width = 100, Height = 36,
-            DialogResult = DialogResult.OK,
-            Anchor = AnchorStyles.Bottom | AnchorStyles.Right
-        };
+        _btnRemove = new Button { Text = "\u25C0", Width = 44, Height = 36, Font = new System.Drawing.Font("Segoe UI", 12f) };
+        _btnRemove.Click += (_, _) => RemoveSelectedFromList();
+
+        _btnMoveUp = new Button { Text = "\u25B2", Width = 44, Height = 34 };
+        _btnMoveUp.Click += (_, _) => MoveSelected(-1);
+
+        _btnMoveDown = new Button { Text = "\u25BC", Width = 44, Height = 34 };
+        _btnMoveDown.Click += (_, _) => MoveSelected(1);
+
+        _btnClear = new Button { Text = "Clear", Width = 90, Height = 30 };
+        _btnClear.Click += (_, _) => ClearSelected();
+
+        _btnRefresh = new Button { Text = "Refresh", Width = 90, Height = 30 };
+        _btnRefresh.Click += (_, _) => LoadTree();
+
+        var lblSelected = new Label { Text = "Selected Members:", AutoSize = true };
+        _lbSelected = new ListBox { SelectionMode = SelectionMode.MultiExtended };
+
+        _rbRow = new RadioButton { Text = "Place on Rows", AutoSize = true, Checked = true };
+        _rbCol = new RadioButton { Text = "Place on Columns", AutoSize = true };
+
+        _btnOk = new Button { Text = "OK", Width = 100, Height = 36, DialogResult = DialogResult.OK };
         _btnOk.Click += (_, _) =>
         {
-            if (_tree.SelectedNode?.Tag is long id)
-                SelectedMemberId = id;
             if (_cbDimension.SelectedIndex >= 0)
                 SelectedDimensionId = _dimensions[_cbDimension.SelectedIndex].Id;
         };
+        _btnOk.Enabled = false;
 
-        _btnCancel = new Button
+        _btnCancel = new Button { Text = "Cancel", Width = 100, Height = 36, DialogResult = DialogResult.Cancel };
+
+        Controls.AddRange(new Control[]
         {
-            Text = "Cancel", Width = 110, Height = 36,
-            DialogResult = DialogResult.Cancel,
-            Anchor = AnchorStyles.Bottom | AnchorStyles.Right
-        };
+            _cbDimension, _txtSearch,
+            _tree, _btnAdd, _btnRemove,
+            lblSelected, _lbSelected,
+            _btnMoveUp, _btnMoveDown, _btnClear, _btnRefresh,
+            _rbRow, _rbCol, _btnOk, _btnCancel
+        });
 
-        Controls.AddRange(new Control[] { lblDim, _cbDimension, _tree, _rbRow, _rbCol, _btnOk, _btnCancel });
         AcceptButton = _btnOk;
         CancelButton = _btnCancel;
 
@@ -103,36 +126,252 @@ public class MemberPickerForm : Form
 
     private void LayoutControls()
     {
-        int cw = ClientSize.Width - 40;
-        int lx = 20;
+        int pad = 20;
+        int cw = ClientSize.Width;
+        int ch = ClientSize.Height;
 
-        _cbDimension.Width = cw;
-        _tree.Width = cw;
-        _tree.Height = ClientSize.Height - 170;
+        // Pane width calculations
+        int centerBtnW = 56;
+        int rightColW = 100;
+        int leftPaneW = (cw - pad * 2 - centerBtnW - rightColW - 36) / 2;
+        int rightPaneX = pad + leftPaneW + centerBtnW + 20;
+        int rightPaneW = cw - rightPaneX - rightColW - 16;
 
-        int radioY = ClientSize.Height - 72;
+        // Row 1: Dimension dropdown
+        int topY = pad;
+        _cbDimension.Left = pad;
+        _cbDimension.Top = topY;
+        _cbDimension.Width = Math.Min(240, leftPaneW);
+
+        // Row 2: Search box (within left pane area, full width)
+        int searchTop = topY + _cbDimension.Height + 12;
+        _txtSearch.Left = pad;
+        _txtSearch.Top = searchTop;
+        _txtSearch.Width = leftPaneW;
+        _txtSearch.PlaceholderText = "Enter a member name to search...";
+
+        // "Selected Members:" label
+        var lblSelected = Controls[5] as Label;
+        lblSelected!.Left = rightPaneX;
+        lblSelected.Top = searchTop;
+
+        // Main pane area
+        int treeTop = searchTop + 40;
+        int bottomRowH = 52;
+        int radioY = ch - bottomRowH;
+        int paneBottom = radioY - 16;
+        int paneH = paneBottom - treeTop;
+
+        // Left tree
+        _tree.Left = pad;
+        _tree.Top = treeTop;
+        _tree.Width = leftPaneW;
+        _tree.Height = paneH;
+
+        // Center ▶/◀ buttons
+        int centerX = pad + leftPaneW + 6;
+        int midY = treeTop + (paneH / 2) - 44;
+        _btnAdd.Left = centerX;
+        _btnAdd.Top = midY;
+        _btnAdd.Width = centerBtnW - 12;
+        _btnRemove.Left = centerX;
+        _btnRemove.Top = midY + 46;
+        _btnRemove.Width = centerBtnW - 12;
+
+        // Right selected list
+        _lbSelected.Left = rightPaneX;
+        _lbSelected.Top = treeTop;
+        _lbSelected.Width = rightPaneW;
+        _lbSelected.Height = paneH;
+
+        // Far-right buttons
+        int orderX = rightPaneX + rightPaneW + 10;
+        _btnMoveUp.Left = orderX;
+        _btnMoveUp.Top = treeTop + 6;
+        _btnMoveUp.Width = rightColW;
+        _btnMoveDown.Left = orderX;
+        _btnMoveDown.Top = treeTop + 46;
+        _btnMoveDown.Width = rightColW;
+        _btnClear.Left = orderX;
+        _btnClear.Top = treeTop + 110;
+        _btnClear.Width = rightColW;
+        _btnRefresh.Left = orderX;
+        _btnRefresh.Top = treeTop + 148;
+        _btnRefresh.Width = rightColW;
+
+        // Bottom row
+        _rbRow.Left = pad;
         _rbRow.Top = radioY;
-        _rbRow.Left = lx;
+        _rbCol.Left = _rbRow.Right + 24;
         _rbCol.Top = radioY;
-        _rbCol.Left = lx + 200;
 
-        int btnY = ClientSize.Height - 56;
-        _btnCancel.Left = lx + cw - _btnCancel.Width;
-        _btnCancel.Top = btnY;
-        _btnOk.Left = _btnCancel.Left - _btnOk.Width - 10;
-        _btnOk.Top = btnY;
+        _btnCancel.Left = cw - pad - _btnCancel.Width;
+        _btnCancel.Top = radioY;
+        _btnOk.Left = _btnCancel.Left - _btnOk.Width - 12;
+        _btnOk.Top = radioY;
+    }
+
+    private void OnDimensionChanged()
+    {
+        _selectedMembers.Clear();
+        RefreshSelectedList();
+        _txtSearch.Text = "";
+        LoadTree();
     }
 
     private void LoadTree()
     {
+        _tree.BeginUpdate();
         _tree.Nodes.Clear();
-        if (_cbDimension.SelectedIndex < 0) return;
+        if (_cbDimension.SelectedIndex < 0) { _tree.EndUpdate(); return; }
 
         var dim = _dimensions[_cbDimension.SelectedIndex];
-        var roots = DimensionTree.BuildTree(dim.Id);
-        foreach (var root in roots)
+        _currentRoots = DimensionTree.BuildTree(dim.Id);
+        foreach (var root in _currentRoots)
             _tree.Nodes.Add(BuildNode(root));
         _tree.ExpandAll();
+        _tree.EndUpdate();
+    }
+
+    private void ApplySearchFilter()
+    {
+        var query = _txtSearch.Text.Trim();
+        _tree.BeginUpdate();
+        _tree.Nodes.Clear();
+
+        if (string.IsNullOrEmpty(query))
+        {
+            foreach (var root in _currentRoots)
+                _tree.Nodes.Add(BuildNode(root));
+            _tree.ExpandAll();
+        }
+        else
+        {
+            foreach (var root in _currentRoots)
+            {
+                var filtered = BuildFilteredNode(root, query);
+                if (filtered != null)
+                    _tree.Nodes.Add(filtered);
+            }
+            _tree.ExpandAll();
+        }
+        _tree.EndUpdate();
+    }
+
+    private static TreeNode? BuildFilteredNode(DimensionTreeNode dtNode, string query)
+    {
+        bool selfMatch = dtNode.Member.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || (dtNode.Member.Description ?? "").Contains(query, StringComparison.OrdinalIgnoreCase);
+
+        var childNodes = new List<TreeNode>();
+        foreach (var child in dtNode.Children)
+        {
+            var filtered = BuildFilteredNode(child, query);
+            if (filtered != null)
+                childNodes.Add(filtered);
+        }
+
+        if (!selfMatch && childNodes.Count == 0)
+            return null;
+
+        var tn = new TreeNode(dtNode.Member.Name) { Tag = dtNode.Member.Id };
+        if (selfMatch)
+            tn.BackColor = System.Drawing.Color.LightYellow;
+        foreach (var cn in childNodes)
+            tn.Nodes.Add(cn);
+        return tn;
+    }
+
+    private bool _suppressCheck;
+
+    private void OnTreeAfterCheck(object? sender, TreeViewEventArgs e)
+    {
+        if (_suppressCheck || e.Node == null) return;
+        _suppressCheck = true;
+        SetChildrenChecked(e.Node, e.Node.Checked);
+        _suppressCheck = false;
+    }
+
+    private static void SetChildrenChecked(TreeNode node, bool isChecked)
+    {
+        foreach (TreeNode child in node.Nodes)
+        {
+            child.Checked = isChecked;
+            SetChildrenChecked(child, isChecked);
+        }
+    }
+
+    private void AddCheckedFromTree()
+    {
+        var checkedNodes = new List<TreeNode>();
+        CollectCheckedLeaves(_tree.Nodes, checkedNodes);
+
+        if (checkedNodes.Count == 0 && _tree.SelectedNode?.Tag is long id)
+        {
+            AddSingleNodeFromTree(_tree.SelectedNode);
+            return;
+        }
+
+        foreach (var node in checkedNodes)
+        {
+            if (node.Tag is not long nid) continue;
+            if (_selectedMembers.Any(m => m.Id == nid)) continue;
+            _selectedMembers.Add((nid, node.Text));
+        }
+        RefreshSelectedList();
+    }
+
+    private static void CollectCheckedLeaves(TreeNodeCollection nodes, List<TreeNode> results)
+    {
+        foreach (TreeNode node in nodes)
+        {
+            if (node.Checked && node.Tag is long)
+                results.Add(node);
+            else
+                CollectCheckedLeaves(node.Nodes, results);
+        }
+    }
+
+    private void AddSingleNodeFromTree(TreeNode? node)
+    {
+        if (node?.Tag is not long id) return;
+        if (_selectedMembers.Any(m => m.Id == id)) return;
+        _selectedMembers.Add((id, node.Text));
+        RefreshSelectedList();
+    }
+
+    private void RemoveSelectedFromList()
+    {
+        var indices = _lbSelected.SelectedIndices.Cast<int>().OrderByDescending(i => i).ToList();
+        foreach (var idx in indices)
+            _selectedMembers.RemoveAt(idx);
+        RefreshSelectedList();
+    }
+
+    private void MoveSelected(int direction)
+    {
+        if (_lbSelected.SelectedIndex < 0) return;
+        int idx = _lbSelected.SelectedIndex;
+        int newIdx = idx + direction;
+        if (newIdx < 0 || newIdx >= _selectedMembers.Count) return;
+
+        (_selectedMembers[idx], _selectedMembers[newIdx]) = (_selectedMembers[newIdx], _selectedMembers[idx]);
+        RefreshSelectedList();
+        _lbSelected.SelectedIndex = newIdx;
+    }
+
+    private void ClearSelected()
+    {
+        _selectedMembers.Clear();
+        RefreshSelectedList();
+    }
+
+    private void RefreshSelectedList()
+    {
+        _lbSelected.Items.Clear();
+        foreach (var (_, name) in _selectedMembers)
+            _lbSelected.Items.Add(name);
+        _btnOk.Enabled = _selectedMembers.Count > 0;
     }
 
     private static TreeNode BuildNode(DimensionTreeNode dtNode)

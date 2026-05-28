@@ -19,6 +19,7 @@ public class MyOlapRibbon : ExcelRibbon
 {
     private readonly OlapEngine _engine = OlapEngine.Instance;
     private IRibbonUI? _ribbonUi;
+    private readonly Dictionary<string, long> _sheetModels = new(StringComparer.OrdinalIgnoreCase);
 
     public void OnRibbonLoad(IRibbonUI ribbonUI)
     {
@@ -48,6 +49,7 @@ public class MyOlapRibbon : ExcelRibbon
         </group>
         <group id='grpView' label='View'>
           <button id='btnSwapRowCol'   label='Swap to Row/Col' size='normal' imageMso='PivotTableReport'   onAction='OnSwapRowCol'/>
+          <button id='btnMoveToHeader' label='Move to Header'  size='normal' imageMso='MoveUp'             onAction='OnMoveToHeader'/>
           <button id='btnKeepSelected' label='Keep Selected' size='normal' imageMso='FilterBySelection'   onAction='OnKeepSelected'/>
           <button id='btnRemoveSelected' label='Remove Selected' size='normal' imageMso='Delete'          onAction='OnRemoveSelected'/>
           <button id='btnUndoLast'     label='Undo Last'     size='normal' imageMso='Undo'                onAction='OnUndoLast'/>
@@ -61,7 +63,7 @@ public class MyOlapRibbon : ExcelRibbon
 
         <group id='grpInfo' label='Info'>
           <labelControl id='lblActiveModel' getLabel='GetActiveModelLabel'/>
-          <labelControl id='lblVersion'     label='Version: v1.0'/>
+          <labelControl id='lblVersion'     label='Version: v1.2'/>
         </group>
       </tab>
     </tabs>
@@ -98,12 +100,23 @@ public class MyOlapRibbon : ExcelRibbon
                     modelId = mgr.CreateEmptyModel(name);
                 _engine.SelectModel(modelId);
                 WriteGridToSheet();
+                _sheetModels[GetActiveSheetName()] = modelId;
                 RefreshInfoLabels();
             }
             else if (form.SelectedModelId > 0)
             {
+                var sheetName = GetActiveSheetName();
+                if (_sheetModels.TryGetValue(sheetName, out var prevModelId) && prevModelId != form.SelectedModelId)
+                {
+                    var prevName = SqliteRepository.Instance.GetAllModels().FirstOrDefault(m => m.Id == prevModelId)?.Name ?? "Unknown";
+                    var result = MessageBox.Show(
+                        $"Current sheet connection source model ({prevName}) does not match currently selected model.\nDefault view will be used. Current values on the sheet will be cleared.\n\nDo you want to continue?",
+                        "Model Mismatch", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                    if (result == DialogResult.No) return;
+                }
                 _engine.SelectModel(form.SelectedModelId);
                 WriteGridToSheet();
+                _sheetModels[sheetName] = form.SelectedModelId;
                 RefreshInfoLabels();
             }
         }
@@ -129,6 +142,18 @@ public class MyOlapRibbon : ExcelRibbon
             return;
         }
         var sheetName = GetActiveSheetName();
+        if (_sheetModels.TryGetValue(sheetName, out var savedModelId) && savedModelId != _engine.ActiveModel.Id)
+        {
+            var savedModelName = SqliteRepository.Instance.GetAllModels().FirstOrDefault(m => m.Id == savedModelId)?.Name ?? "Unknown";
+            var result = MessageBox.Show(
+                $"Current sheet connection source model ({savedModelName}) does not match currently selected model.\nDefault view will be used. Current values on the sheet will be cleared.\n\nDo you want to continue?",
+                "Model Mismatch", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+            if (result == DialogResult.No) return;
+            _engine.SelectModel(_engine.ActiveModel.Id);
+            WriteGridToSheet();
+            _sheetModels[sheetName] = _engine.ActiveModel.Id;
+            return;
+        }
         if (_engine.RestoreViewForSheet(sheetName))
         {
             WriteGridToSheet();
@@ -138,6 +163,7 @@ public class MyOlapRibbon : ExcelRibbon
             _engine.SelectModel(_engine.ActiveModel.Id);
             WriteGridToSheet();
         }
+        _sheetModels[sheetName] = _engine.ActiveModel.Id;
     }
 
     private string GetActiveSheetName()
@@ -171,9 +197,11 @@ public class MyOlapRibbon : ExcelRibbon
             var owner = new Win32Window(GetExcelHwnd());
             using var form = new MemberPickerForm(_engine.ActiveModel.Id, contextDimId);
             if (form.ShowDialog(owner) != DialogResult.OK) return;
-            if (form.SelectedMemberId <= 0) return;
 
-            _engine.PickMember(form.SelectedDimensionId, form.SelectedMemberId, form.PlaceOnRow);
+            var ids = form.SelectedMemberIds;
+            if (ids.Count == 0) return;
+
+            _engine.PickMembers(form.SelectedDimensionId, ids, form.PlaceOnRow);
             WriteGridToSheet();
         }
         catch (Exception ex)
@@ -241,6 +269,15 @@ public class MyOlapRibbon : ExcelRibbon
             _engine.SwapDimension(dimId);
         else
             _engine.SwapRowCol();
+        WriteGridToSheet();
+    }
+
+    public void OnMoveToHeader(IRibbonControl control)
+    {
+        if (_engine.ActiveModel == null) { ShowMessage("No model selected."); return; }
+        var (dimId, _) = GetSelectedCellMember();
+        if (dimId == 0) { ShowMessage("Select a dimension or member cell first."); return; }
+        _engine.MoveToHeader(dimId);
         WriteGridToSheet();
     }
 

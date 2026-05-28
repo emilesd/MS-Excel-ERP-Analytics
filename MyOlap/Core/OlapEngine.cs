@@ -421,7 +421,16 @@ public class OlapEngine
     /// </summary>
     public void PickMember(long dimensionId, long memberId, bool onRow)
     {
-        if (CurrentView == null) return;
+        PickMembers(dimensionId, new List<long> { memberId }, onRow);
+    }
+
+    /// <summary>
+    /// Places multiple picked members onto the row or column axis,
+    /// replacing any previous members for that dimension on the target axis.
+    /// </summary>
+    public void PickMembers(long dimensionId, List<long> memberIds, bool onRow)
+    {
+        if (CurrentView == null || memberIds.Count == 0) return;
         PushUndo();
 
         var targetAxes = onRow ? CurrentView.RowAxes : CurrentView.ColAxes;
@@ -430,11 +439,11 @@ public class OlapEngine
         otherAxes.RemoveAll(a => a.DimensionId == dimensionId);
         CurrentView.PovSelections.Remove(dimensionId);
 
+        var deduped = memberIds.Distinct().ToList();
         var existing = targetAxes.FirstOrDefault(a => a.DimensionId == dimensionId);
         if (existing != null)
         {
-            if (!existing.VisibleMemberIds.Contains(memberId))
-                existing.VisibleMemberIds.Add(memberId);
+            existing.VisibleMemberIds = deduped;
         }
         else
         {
@@ -444,9 +453,31 @@ public class OlapEngine
             {
                 DimensionId = dimensionId,
                 DimensionName = dim?.Name ?? "Unknown",
-                VisibleMemberIds = new List<long> { memberId }
+                VisibleMemberIds = deduped
             });
         }
+    }
+
+    /// <summary>
+    /// Moves a dimension from row/column axis back to the POV header.
+    /// The first visible member becomes the POV selection.
+    /// </summary>
+    public void MoveToHeader(long dimensionId)
+    {
+        if (CurrentView == null) return;
+        PushUndo();
+
+        var axis = CurrentView.RowAxes.FirstOrDefault(a => a.DimensionId == dimensionId)
+                ?? CurrentView.ColAxes.FirstOrDefault(a => a.DimensionId == dimensionId);
+        if (axis == null) return;
+
+        CurrentView.RowAxes.Remove(axis);
+        CurrentView.ColAxes.Remove(axis);
+
+        var roots = _repo.GetRootMembers(dimensionId);
+        var povMemberId = roots.Count > 0 ? roots[0].Id : axis.VisibleMemberIds.FirstOrDefault();
+        if (povMemberId > 0)
+            CurrentView.PovSelections[dimensionId] = povMemberId;
     }
 
     #endregion
