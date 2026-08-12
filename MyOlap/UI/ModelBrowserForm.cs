@@ -16,6 +16,10 @@ public class ModelBrowserForm : Form
     public bool CreateNew { get; private set; }
     public long CloneFromId { get; private set; }
 
+    // Fired whenever the user highlights a different model in the list.
+    // Callers use this to kick off background prefetch before the user clicks Open.
+    public event Action<long>? ModelHighlighted;
+
     public ModelBrowserForm()
     {
         AutoScaleMode = AutoScaleMode.Font;
@@ -37,6 +41,11 @@ public class ModelBrowserForm : Form
         _listBox = new ListBox
         {
             Left = 12, Top = 44, Width = 636, Height = 224
+        };
+        _listBox.SelectedIndexChanged += (_, _) =>
+        {
+            if (_listBox.SelectedIndex >= 0 && _listBox.SelectedIndex < _models.Count)
+                ModelHighlighted?.Invoke(_models[_listBox.SelectedIndex].Id);
         };
 
         var buttonPanel = new FlowLayoutPanel

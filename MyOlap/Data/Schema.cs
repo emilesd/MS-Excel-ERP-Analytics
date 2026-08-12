@@ -60,6 +60,19 @@ public class Member
     public int Level { get; set; }
     public int SortOrder { get; set; }
     public string ConsolOperator { get; set; } = "+";
+    public string Formula { get; set; } = string.Empty;
+    public string TimeBalance { get; set; } = string.Empty;
+    public long? SharedFromId { get; set; }
+
+    // Display name strips the internal "__shared_<parent>" suffix added to shared members.
+    public string DisplayName
+    {
+        get
+        {
+            var idx = Name.IndexOf("__shared_", StringComparison.Ordinal);
+            return idx > 0 ? Name[..idx] : Name;
+        }
+    }
 }
 
 /// <summary>
@@ -98,4 +111,10 @@ public class ModelSettings
     public bool OmitEmptyColumns { get; set; }
     /// <summary>0 = Name only, 1 = Description only, 2 = Both</summary>
     public int MemberDisplay { get; set; }
+    /// <summary>
+    /// When true: only the OLAP grid's own footprint is cleared on each render,
+    /// so Excel formulas/text placed outside the grid survive refresh/drill/keep/remove/undo.
+    /// Swap to Row/Col warns before proceeding when this is on.
+    /// </summary>
+    public bool PreserveFormulas { get; set; }
 }

@@ -43,12 +43,31 @@ public class DataLoader
     }
 
     /// <summary>
+    /// Returns the user-facing alert when one or more model dimensions are not mapped
+    /// in the data source, or null when every dimension has a column.
+    /// </summary>
+    public static string? GetMissingDimensionAlert(IReadOnlyList<Dimension> dims, ColumnMapping mapping)
+    {
+        if (dims == null || dims.Count == 0 || mapping == null) return null;
+        var mapped = new HashSet<long>(mapping.ColumnToDimension.Values);
+        var missing = dims.Where(d => !mapped.Contains(d.Id)).Select(d => d.Name).ToList();
+        if (missing.Count == 0) return null;
+        return $"Data for dimension {string.Join(", ", missing)} not provided. Please provide data for all dimensions in the data source";
+    }
+
+    /// <summary>
     /// Loads all data rows from the file using the provided mapping.
-    /// Member names are resolved to IDs; unknown members are auto-created.
+    /// Member names are resolved to IDs; unknown members are skipped.
     /// Data is inserted in a single transaction for performance.
+    /// Requires every model dimension to be mapped to a source column.
     /// </summary>
     public int LoadData(string filePath, long modelId, ColumnMapping mapping)
     {
+        var dims = _repo.GetDimensions(modelId);
+        var missingAlert = GetMissingDimensionAlert(dims, mapping);
+        if (missingAlert != null)
+            throw new InvalidOperationException(missingAlert);
+
         var ext = Path.GetExtension(filePath).ToLowerInvariant();
         var rows = ext switch
         {
@@ -58,7 +77,6 @@ public class DataLoader
             _ => throw new NotSupportedException($"Unsupported file format: {ext}")
         };
 
-        var dims = _repo.GetDimensions(modelId);
         var dimOrder = dims.OrderBy(d => d.SortOrder).Select(d => d.Id).ToList();
 
         var memberCache = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
@@ -105,10 +123,11 @@ public class DataLoader
 
             if (skip) continue;
 
-            foreach (var dimId in dimOrder)
+            // All dimensions were validated as mapped; every dimId must have a member.
+            if (dimOrder.Any(dimId => !memberIds.ContainsKey(dimId)))
             {
-                if (!memberIds.ContainsKey(dimId))
-                    memberIds[dimId] = 0;
+                skipped++;
+                continue;
             }
 
             var key = OlapEngine.BuildMemberKey(dimOrder, memberIds);

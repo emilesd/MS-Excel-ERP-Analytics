@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <title>Move to Row</title>
+  <path d="M5.5 4.75V14.25" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  <circle cx="5.5" cy="6" r=".75" fill="currentColor"/>
+  <circle cx="5.5" cy="9.5" r=".75" fill="currentColor"/>
+  <circle cx="5.5" cy="13" r=".75" fill="currentColor"/>
+  <path d="M9 18.25H19.25" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M16.75 15.75L19.25 18.25L16.75 20.75" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M8.5 7.25C12 7.25 13.75 9 13.75 12.5V14.25" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M11.75 12.25L13.75 14.25L15.75 12.25" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

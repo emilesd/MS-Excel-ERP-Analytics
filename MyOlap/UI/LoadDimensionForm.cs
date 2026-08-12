@@ -1,6 +1,7 @@
 ﻿using System.Windows.Forms;
 using System.Globalization;
 using System.IO;
+using MyOlap.Core;
 using MyOlap.Data;
 using OfficeOpenXml;
 using CsvHelper;
@@ -11,12 +12,15 @@ namespace MyOlap.UI;
 public class LoadDimensionForm : Form
 {
     private readonly long _modelId;
+    private long _preSelectedDimId;
     private readonly TextBox _txtFile;
     private readonly ComboBox _cbSheet;
     private readonly ComboBox _cbParent;
     private readonly ComboBox _cbChild;
     private readonly ComboBox _cbDescription;
     private readonly ComboBox _cbConsolOp;
+    private readonly ComboBox _cbFormula;
+    private readonly ComboBox _cbTimeBalance;
     private readonly ComboBox _cbDimension;
     private readonly Label _lblStatus;
     private List<Dimension> _dims = new();
@@ -25,7 +29,7 @@ public class LoadDimensionForm : Form
     private List<string> _sheetNames = new();
     private List<string> _columnHeaders = new();
 
-    public LoadDimensionForm(long modelId)
+    public LoadDimensionForm(long modelId, long preSelectedDimId = 0)
     {
         _modelId = modelId;
         AutoScaleMode = AutoScaleMode.Font;
@@ -78,6 +82,16 @@ public class LoadDimensionForm : Form
         _cbConsolOp = new ComboBox { Left = lx, Top = y, Width = cw, DropDownStyle = ComboBoxStyle.DropDownList };
 
         y += rowGap;
+        var lblFormula = new Label { Text = "Formula Column:", Left = lx, Top = y, AutoSize = true };
+        y += lblGap;
+        _cbFormula = new ComboBox { Left = lx, Top = y, Width = cw, DropDownStyle = ComboBoxStyle.DropDownList };
+
+        y += rowGap;
+        var lblTimeBal = new Label { Text = "Time Balance Column:", Left = lx, Top = y, AutoSize = true };
+        y += lblGap;
+        _cbTimeBalance = new ComboBox { Left = lx, Top = y, Width = cw, DropDownStyle = ComboBoxStyle.DropDownList };
+
+        y += rowGap;
         var lblDim = new Label { Text = "Target Dimension:", Left = lx, Top = y, AutoSize = true };
         y += lblGap;
         _cbDimension = new ComboBox { Left = lx, Top = y, Width = cw, DropDownStyle = ComboBoxStyle.DropDownList };
@@ -117,16 +131,22 @@ public class LoadDimensionForm : Form
             lblChild, _cbChild,
             lblDesc, _cbDescription,
             lblOp, _cbConsolOp,
+            lblFormula, _cbFormula,
+            lblTimeBal, _cbTimeBalance,
             lblDim, _cbDimension,
             btnLoad, btnLoadAll, btnClose, _lblStatus
         });
 
         AcceptButton = btnLoad;
+        _preSelectedDimId = preSelectedDimId;
         _dims = SqliteRepository.Instance.GetDimensions(modelId);
         foreach (var d in _dims)
             _cbDimension.Items.Add(d.Name);
         if (_cbDimension.Items.Count > 0)
-            _cbDimension.SelectedIndex = 0;
+        {
+            int preIdx = preSelectedDimId > 0 ? _dims.FindIndex(d => d.Id == preSelectedDimId) : -1;
+            _cbDimension.SelectedIndex = preIdx >= 0 ? preIdx : 0;
+        }
     }
 
     private void BtnBrowse_Click(object? sender, EventArgs e)
@@ -165,7 +185,18 @@ public class LoadDimensionForm : Form
             }
 
             if (_cbSheet.Items.Count > 0)
-                _cbSheet.SelectedIndex = 0;
+            {
+                // If opened with a pre-selected dim, auto-select the matching sheet so it doesn't
+                // immediately flip back to the first sheet's dimension when AutoMapColumns runs.
+                int sheetIdx = 0;
+                if (_preSelectedDimId > 0)
+                {
+                    var dimName = _dims.FirstOrDefault(d => d.Id == _preSelectedDimId)?.Name ?? "";
+                    int match = _sheetNames.FindIndex(s => s.Equals(dimName, StringComparison.OrdinalIgnoreCase));
+                    if (match >= 0) sheetIdx = match;
+                }
+                _cbSheet.SelectedIndex = sheetIdx;
+            }
         }
         catch (Exception ex)
         {
@@ -187,6 +218,10 @@ public class LoadDimensionForm : Form
             _cbDescription.Items.Add("(none)");
             _cbConsolOp.Items.Clear();
             _cbConsolOp.Items.Add("(none)");
+            _cbFormula.Items.Clear();
+            _cbFormula.Items.Add("(none)");
+            _cbTimeBalance.Items.Clear();
+            _cbTimeBalance.Items.Add("(none)");
 
             if (_isCsv)
             {
@@ -204,6 +239,8 @@ public class LoadDimensionForm : Form
                         _cbChild.Items.Add(h);
                         _cbDescription.Items.Add(h);
                         _cbConsolOp.Items.Add(h);
+                        _cbFormula.Items.Add(h);
+                        _cbTimeBalance.Items.Add(h);
                     }
                 }
             }
@@ -223,6 +260,8 @@ public class LoadDimensionForm : Form
                     _cbChild.Items.Add(header);
                     _cbDescription.Items.Add(header);
                     _cbConsolOp.Items.Add(header);
+                    _cbFormula.Items.Add(header);
+                    _cbTimeBalance.Items.Add(header);
                 }
             }
 
@@ -241,6 +280,8 @@ public class LoadDimensionForm : Form
         var childAliases = new[] { "child", "child_id", "childid", "member", "child member", "childmember", "name" };
         var descAliases = new[] { "description", "desc", "alias", "label" };
         var opAliases = new[] { "consolop", "consol", "operator", "op", "sign" };
+        var formulaAliases = new[] { "formula", "calc", "calculation" };
+        var timeBalAliases = new[] { "timebalance", "time_balance", "timebal", "timbal" };
 
         for (int i = 0; i < _columnHeaders.Count; i++)
         {
@@ -253,12 +294,18 @@ public class LoadDimensionForm : Form
                 _cbDescription.SelectedIndex = i + 1;
             if (opAliases.Any(a => h.Contains(a)) && _cbConsolOp.SelectedIndex <= 0)
                 _cbConsolOp.SelectedIndex = i + 1;
+            if (formulaAliases.Any(a => h.Contains(a)) && _cbFormula.SelectedIndex <= 0)
+                _cbFormula.SelectedIndex = i + 1;
+            if (timeBalAliases.Any(a => h.Contains(a)) && _cbTimeBalance.SelectedIndex <= 0)
+                _cbTimeBalance.SelectedIndex = i + 1;
         }
 
         if (_cbParent.SelectedIndex < 0 && _cbParent.Items.Count >= 1) _cbParent.SelectedIndex = 0;
         if (_cbChild.SelectedIndex < 0 && _cbChild.Items.Count >= 2) _cbChild.SelectedIndex = 1;
         if (_cbDescription.SelectedIndex < 0) _cbDescription.SelectedIndex = 0;
         if (_cbConsolOp.SelectedIndex < 0) _cbConsolOp.SelectedIndex = 0;
+        if (_cbFormula.SelectedIndex < 0) _cbFormula.SelectedIndex = 0;
+        if (_cbTimeBalance.SelectedIndex < 0) _cbTimeBalance.SelectedIndex = 0;
 
         var sheetName = _cbSheet.Text.ToLowerInvariant();
         for (int i = 0; i < _dims.Count; i++)
@@ -271,13 +318,15 @@ public class LoadDimensionForm : Form
         }
     }
 
-    private List<(string parent, string child, string desc, string consolOp)> ReadRows()
+    private List<(string parent, string child, string desc, string consolOp, string formula, string timeBalance)> ReadRows()
     {
         int parentCol = _cbParent.SelectedIndex;
         int childCol = _cbChild.SelectedIndex;
         int descCol = _cbDescription.SelectedIndex - 1;
         int opCol = _cbConsolOp.SelectedIndex - 1;
-        var rows = new List<(string parent, string child, string desc, string consolOp)>();
+        int formulaCol = _cbFormula.SelectedIndex - 1;
+        int timeBalCol = _cbTimeBalance.SelectedIndex - 1;
+        var rows = new List<(string parent, string child, string desc, string consolOp, string formula, string timeBalance)>();
 
         if (_isCsv)
         {
@@ -289,8 +338,10 @@ public class LoadDimensionForm : Form
                 var child = csv.GetField(childCol)?.Trim() ?? "";
                 var desc = descCol >= 0 ? (csv.GetField(descCol)?.Trim() ?? "") : "";
                 var consolOp = opCol >= 0 ? (csv.GetField(opCol)?.Trim() ?? "+") : "+";
+                var formula = formulaCol >= 0 ? (csv.GetField(formulaCol)?.Trim() ?? "") : "";
+                var timeBalance = timeBalCol >= 0 ? (csv.GetField(timeBalCol)?.Trim() ?? "") : "";
                 if (!string.IsNullOrEmpty(child) && !parent.Equals(child, StringComparison.OrdinalIgnoreCase))
-                    rows.Add((parent, child, desc, consolOp));
+                    rows.Add((parent, child, desc, consolOp, formula, timeBalance));
             }
         }
         else
@@ -306,8 +357,10 @@ public class LoadDimensionForm : Form
                 var child = ws.Cells[r, childCol + 1].Text.Trim();
                 var desc = descCol >= 0 ? ws.Cells[r, descCol + 1].Text.Trim() : "";
                 var consolOp = opCol >= 0 ? ws.Cells[r, opCol + 1].Text.Trim() : "+";
+                var formula = formulaCol >= 0 ? ws.Cells[r, formulaCol + 1].Text.Trim() : "";
+                var timeBalance = timeBalCol >= 0 ? ws.Cells[r, timeBalCol + 1].Text.Trim() : "";
                 if (!string.IsNullOrEmpty(child) && !parent.Equals(child, StringComparison.OrdinalIgnoreCase))
-                    rows.Add((parent, child, desc, consolOp));
+                    rows.Add((parent, child, desc, consolOp, formula, timeBalance));
             }
         }
 
@@ -333,147 +386,15 @@ public class LoadDimensionForm : Form
         }
 
         var dim = _dims[_cbDimension.SelectedIndex];
-
         _lblStatus.Text = "Loading\u2026";
         Application.DoEvents();
 
         try
         {
             var rows = ReadRows();
-            var repo = SqliteRepository.Instance;
-
-            var existing = repo.GetMembersByNameForDimension(dim.Id);
-            var memberMap = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
-            foreach (var kvp in existing)
-                memberMap[kvp.Key] = kvp.Value.Id;
-
-            var allChildren = new HashSet<string>(rows.Select(r => r.child), StringComparer.OrdinalIgnoreCase);
-            var allParents = new HashSet<string>(rows.Select(r => r.parent).Where(p => !string.IsNullOrEmpty(p)), StringComparer.OrdinalIgnoreCase);
-            var rootNames = allParents.Except(allChildren, StringComparer.OrdinalIgnoreCase).ToList();
-
-            int order = 0;
-            int inserted = 0;
-            int updated = 0;
-
-            foreach (var rootName in rootNames)
-            {
-                if (existing.TryGetValue(rootName, out var ex))
-                {
-                    ex.ParentId = null;
-                    ex.Description = rootName;
-                    ex.Level = 0;
-                    ex.SortOrder = order++;
-                    repo.UpdateMember(ex);
-                    memberMap[rootName] = ex.Id;
-                    updated++;
-                }
-                else if (!memberMap.ContainsKey(rootName))
-                {
-                    var id = repo.InsertMember(new Member
-                    {
-                        DimensionId = dim.Id,
-                        Name = rootName,
-                        Description = rootName,
-                        Level = 0,
-                        SortOrder = order++
-                    });
-                    memberMap[rootName] = id;
-                    inserted++;
-                }
-            }
-
-            var processed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var queue = new Queue<string>(rootNames);
-
-            while (queue.Count > 0)
-            {
-                var parentName = queue.Dequeue();
-                if (!memberMap.TryGetValue(parentName, out var parentId)) continue;
-
-                var children = rows.Where(r => r.parent.Equals(parentName, StringComparison.OrdinalIgnoreCase)).ToList();
-                foreach (var (_, childName, desc, op) in children)
-                {
-                    if (childName.Equals(parentName, StringComparison.OrdinalIgnoreCase)) continue;
-                    var resolvedDesc = string.IsNullOrEmpty(desc) ? childName : desc;
-                    var resolvedOp = NormalizeOp(op);
-                    var parentMember = repo.GetMember(parentId);
-                    int level = (parentMember?.Level ?? 0) + 1;
-
-                    if (existing.TryGetValue(childName, out var exChild))
-                    {
-                        exChild.ParentId = parentId;
-                        exChild.Description = resolvedDesc;
-                        exChild.Level = level;
-                        exChild.SortOrder = order++;
-                        exChild.ConsolOperator = resolvedOp;
-                        repo.UpdateMember(exChild);
-                        memberMap[childName] = exChild.Id;
-                        updated++;
-                    }
-                    else if (!memberMap.ContainsKey(childName))
-                    {
-                        var id = repo.InsertMember(new Member
-                        {
-                            DimensionId = dim.Id,
-                            ParentId = parentId,
-                            Name = childName,
-                            Description = resolvedDesc,
-                            Level = level,
-                            SortOrder = order++,
-                            ConsolOperator = resolvedOp
-                        });
-                        memberMap[childName] = id;
-                        inserted++;
-                    }
-
-                    if (!processed.Contains(childName))
-                    {
-                        processed.Add(childName);
-                        queue.Enqueue(childName);
-                    }
-                }
-            }
-
-            foreach (var row in rows)
-            {
-                if (!memberMap.ContainsKey(row.child))
-                {
-                    long? pid = string.IsNullOrEmpty(row.parent) ? null :
-                        memberMap.TryGetValue(row.parent, out var pv) ? pv : null;
-                    var parentMember = pid.HasValue ? repo.GetMember(pid.Value) : null;
-                    var resolvedDesc = string.IsNullOrEmpty(row.desc) ? row.child : row.desc;
-
-                    if (existing.TryGetValue(row.child, out var exOrphan))
-                    {
-                        exOrphan.ParentId = pid;
-                        exOrphan.Description = resolvedDesc;
-                        exOrphan.Level = (parentMember?.Level ?? 0) + 1;
-                        exOrphan.SortOrder = order++;
-                        exOrphan.ConsolOperator = NormalizeOp(row.consolOp);
-                        repo.UpdateMember(exOrphan);
-                        memberMap[row.child] = exOrphan.Id;
-                        updated++;
-                    }
-                    else
-                    {
-                        var id = repo.InsertMember(new Member
-                        {
-                            DimensionId = dim.Id,
-                            ParentId = pid,
-                            Name = row.child,
-                            Description = resolvedDesc,
-                            Level = (parentMember?.Level ?? 0) + 1,
-                            SortOrder = order++,
-                            ConsolOperator = NormalizeOp(row.consolOp)
-                        });
-                        memberMap[row.child] = id;
-                        inserted++;
-                    }
-                }
-            }
-
-            _lblStatus.Text = $"Done: {inserted} new, {updated} updated.";
-            MessageBox.Show($"Dimension '{dim.Name}': {inserted} new members added, {updated} existing members updated.\nFact data has been preserved.",
+            int count = LoadDimensionFromRows(dim, rows);
+            _lblStatus.Text = $"Done: {count} members processed.";
+            MessageBox.Show($"Dimension '{dim.Name}': {count} members processed.\nFact data has been preserved.",
                 "Done", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
@@ -503,33 +424,60 @@ public class LoadDimensionForm : Form
         try
         {
             var results = new List<string>();
+            var skipped = new List<string>();
             int originalDimIndex = _cbDimension.SelectedIndex;
 
-            for (int i = 0; i < _dims.Count; i++)
+            // Creating a brand-new dimension is only allowed on an empty model (no fact data).
+            bool needsNewDimension = _sheetNames.Any(sheetName =>
+                !_dims.Any(d => d.Name.Equals(sheetName, StringComparison.OrdinalIgnoreCase)));
+            if (needsNewDimension)
             {
-                _cbDimension.SelectedIndex = i;
-                var dim = _dims[i];
-
-                var sheetIdx = -1;
-                for (int s = 0; s < _sheetNames.Count; s++)
+                var mgr = new ModelManager();
+                if (!mgr.CanAddNewDimension(_modelId, out var err))
                 {
-                    if (_sheetNames[s].Equals(dim.Name, StringComparison.OrdinalIgnoreCase))
+                    _lblStatus.Text = "Blocked.";
+                    MessageBox.Show(err, "MyOlap", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+            }
+
+            // Iterate over every sheet in the file; find or create a matching dimension.
+            for (int s = 0; s < _sheetNames.Count; s++)
+            {
+                var sheetName = _sheetNames[s];
+
+                // Find existing dimension whose name matches the sheet name
+                int dimIdx = _dims.FindIndex(d => d.Name.Equals(sheetName, StringComparison.OrdinalIgnoreCase));
+
+                if (dimIdx < 0)
+                {
+                    // No dimension with this name — create one (model already verified empty above).
+                    var newDimId = SqliteRepository.Instance.InsertDimension(new Dimension
                     {
-                        sheetIdx = s;
-                        break;
-                    }
+                        ModelId = _modelId,
+                        Name = sheetName,
+                        DimType = DimensionType.UserDefined,
+                        SortOrder = _dims.Count
+                    });
+                    var newDim = new Dimension
+                    {
+                        Id = newDimId, ModelId = _modelId, Name = sheetName,
+                        DimType = DimensionType.UserDefined, SortOrder = _dims.Count
+                    };
+                    _dims.Add(newDim);
+                    _cbDimension.Items.Add(sheetName);
+                    dimIdx = _dims.Count - 1;
                 }
 
-                if (sheetIdx < 0) continue;
-
-                _cbSheet.SelectedIndex = sheetIdx;
+                _cbSheet.SelectedIndex = s;
+                _cbDimension.SelectedIndex = dimIdx;
                 Application.DoEvents();
 
                 var rows = ReadRows();
-                if (rows.Count == 0) continue;
+                if (rows.Count == 0) { skipped.Add($"{sheetName} (no data rows)"); continue; }
 
-                int count = LoadDimensionFromRows(dim, rows);
-                results.Add($"{dim.Name} ({count} members)");
+                int count = LoadDimensionFromRows(_dims[dimIdx], rows);
+                results.Add($"{_dims[dimIdx].Name} ({count} members)");
             }
 
             if (originalDimIndex >= 0 && originalDimIndex < _cbDimension.Items.Count)
@@ -537,15 +485,17 @@ public class LoadDimensionForm : Form
 
             if (results.Count == 0)
             {
-                _lblStatus.Text = "No matching sheets found.";
-                MessageBox.Show("No sheets in the file matched any dimension names.", "Info",
+                _lblStatus.Text = "No sheets with data found.";
+                MessageBox.Show("No sheets in the file contained data rows.", "Info",
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             else
             {
                 _lblStatus.Text = $"Loaded {results.Count} dimensions.";
-                MessageBox.Show($"Loaded {results.Count} dimensions:\n\n{string.Join("\n", results)}",
-                    "All Dimensions Loaded", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                var msg = $"Loaded {results.Count} dimensions:\n\n{string.Join("\n", results)}";
+                if (skipped.Count > 0)
+                    msg += $"\n\nSkipped (empty):\n{string.Join("\n", skipped)}";
+                MessageBox.Show(msg, "All Dimensions Loaded", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         }
         catch (Exception ex)
@@ -556,7 +506,7 @@ public class LoadDimensionForm : Form
         }
     }
 
-    private int LoadDimensionFromRows(Dimension dim, List<(string parent, string child, string desc, string consolOp)> rows)
+    private int LoadDimensionFromRows(Dimension dim, List<(string parent, string child, string desc, string consolOp, string formula, string timeBalance)> rows)
     {
         var repo = SqliteRepository.Instance;
         var existing = repo.GetMembersByNameForDimension(dim.Id);
@@ -564,9 +514,21 @@ public class LoadDimensionForm : Form
         foreach (var kvp in existing)
             memberMap[kvp.Key] = kvp.Value.Id;
 
-        var allChildren = new HashSet<string>(rows.Select(r => r.child), StringComparer.OrdinalIgnoreCase);
-        var allParents = new HashSet<string>(rows.Select(r => r.parent).Where(p => !string.IsNullOrEmpty(p)), StringComparer.OrdinalIgnoreCase);
-        var rootNames = allParents.Except(allChildren, StringComparer.OrdinalIgnoreCase).ToList();
+        // Pre-scan rows in file order: the parent column of the FIRST row where each child name
+        // appears is its canonical (base) parent. All later rows with the same child name are shared.
+        var firstOccurrenceParent = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (p, c, _, _, _, _) in rows)
+        {
+            if (!firstOccurrenceParent.ContainsKey(c))
+                firstOccurrenceParent[c] = p;
+        }
+
+        var allChildrenSet = new HashSet<string>(rows.Select(r => r.child), StringComparer.OrdinalIgnoreCase);
+        var rootNames = rows
+            .Select(r => r.parent)
+            .Where(p => !string.IsNullOrEmpty(p) && !allChildrenSet.Contains(p))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
         int order = 0;
         int total = 0;
@@ -589,6 +551,8 @@ public class LoadDimensionForm : Form
 
         var processed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var queue = new Queue<string>(rootNames);
+        // Deferred shared insertions: non-canonical occurrences encountered before their base was inserted.
+        var deferred = new List<(string parentName, string childName, string desc, string op, string formula, string timeBal)>();
 
         while (queue.Count > 0)
         {
@@ -596,7 +560,7 @@ public class LoadDimensionForm : Form
             if (!memberMap.TryGetValue(parentName, out var parentId)) continue;
 
             var children = rows.Where(r => r.parent.Equals(parentName, StringComparison.OrdinalIgnoreCase)).ToList();
-            foreach (var (_, childName, desc, op) in children)
+            foreach (var (_, childName, desc, op, formula, timeBal) in children)
             {
                 if (childName.Equals(parentName, StringComparison.OrdinalIgnoreCase)) continue;
                 var resolvedDesc = string.IsNullOrEmpty(desc) ? childName : desc;
@@ -604,21 +568,105 @@ public class LoadDimensionForm : Form
                 var parentMember = repo.GetMember(parentId);
                 int level = (parentMember?.Level ?? 0) + 1;
 
+                bool isCanonical = firstOccurrenceParent.TryGetValue(childName, out var canonParent)
+                                   && canonParent.Equals(parentName, StringComparison.OrdinalIgnoreCase);
+
                 if (existing.TryGetValue(childName, out var exChild))
                 {
-                    exChild.ParentId = parentId; exChild.Description = resolvedDesc;
-                    exChild.Level = level; exChild.SortOrder = order++; exChild.ConsolOperator = resolvedOp;
-                    repo.UpdateMember(exChild);
-                    memberMap[childName] = exChild.Id;
+                    // Member already in DB from a previous load — update or create shared copy
+                    if (exChild.ParentId.HasValue && exChild.ParentId.Value != parentId && memberMap.ContainsKey(childName))
+                    {
+                        var sharedName = $"{childName}__shared_{parentName}";
+                        if (!existing.ContainsKey(sharedName) && !memberMap.ContainsKey(sharedName))
+                        {
+                            var sharedId = repo.InsertMember(new Member
+                            {
+                                DimensionId = dim.Id, ParentId = parentId, Name = sharedName,
+                                Description = resolvedDesc, Level = level, SortOrder = order++,
+                                ConsolOperator = resolvedOp, SharedFromId = exChild.Id
+                            });
+                            memberMap[sharedName] = sharedId;
+                        }
+                    }
+                    else
+                    {
+                        exChild.ParentId = parentId; exChild.Description = resolvedDesc;
+                        exChild.Level = level; exChild.SortOrder = order++; exChild.ConsolOperator = resolvedOp;
+                        exChild.Formula = formula; exChild.TimeBalance = timeBal;
+                        repo.UpdateMember(exChild);
+                        memberMap[childName] = exChild.Id;
+                    }
                 }
-                else if (!memberMap.ContainsKey(childName))
+                else if (memberMap.ContainsKey(childName))
                 {
-                    var id = repo.InsertMember(new Member { DimensionId = dim.Id, ParentId = parentId, Name = childName, Description = resolvedDesc, Level = level, SortOrder = order++, ConsolOperator = resolvedOp });
+                    // Base already inserted earlier in this session — create shared copy
+                    var baseId = memberMap[childName];
+                    var sharedName = $"{childName}__shared_{parentName}";
+                    if (!memberMap.ContainsKey(sharedName))
+                    {
+                        var sharedId = repo.InsertMember(new Member
+                        {
+                            DimensionId = dim.Id, ParentId = parentId, Name = sharedName,
+                            Description = resolvedDesc, Level = level, SortOrder = order++,
+                            ConsolOperator = resolvedOp, SharedFromId = baseId
+                        });
+                        memberMap[sharedName] = sharedId;
+                    }
+                }
+                else if (isCanonical)
+                {
+                    // First occurrence in file — insert as base member
+                    var id = repo.InsertMember(new Member
+                    {
+                        DimensionId = dim.Id, ParentId = parentId, Name = childName,
+                        Description = resolvedDesc, Level = level, SortOrder = order++,
+                        ConsolOperator = resolvedOp, Formula = formula, TimeBalance = timeBal
+                    });
                     memberMap[childName] = id;
+                }
+                else
+                {
+                    // Non-canonical occurrence but base not yet in memberMap (BFS reached this parent
+                    // before the canonical parent) — defer until base is available.
+                    deferred.Add((parentName, childName, resolvedDesc, resolvedOp, formula, timeBal));
                 }
                 total++;
 
                 if (!processed.Contains(childName)) { processed.Add(childName); queue.Enqueue(childName); }
+            }
+        }
+
+        // Insert deferred shared members now that all base members have been created.
+        foreach (var (parentName, childName, resolvedDesc, resolvedOp, formula, timeBal) in deferred)
+        {
+            if (!memberMap.TryGetValue(parentName, out var parentId)) continue;
+            var parentMember = repo.GetMember(parentId);
+            int level = (parentMember?.Level ?? 0) + 1;
+
+            if (memberMap.TryGetValue(childName, out var baseId))
+            {
+                var sharedName = $"{childName}__shared_{parentName}";
+                if (!memberMap.ContainsKey(sharedName))
+                {
+                    var sharedId = repo.InsertMember(new Member
+                    {
+                        DimensionId = dim.Id, ParentId = parentId, Name = sharedName,
+                        Description = resolvedDesc, Level = level, SortOrder = order++,
+                        ConsolOperator = resolvedOp, SharedFromId = baseId
+                    });
+                    memberMap[sharedName] = sharedId;
+                }
+            }
+            else
+            {
+                // Base still not found — insert as base (edge case fallback)
+                var id = repo.InsertMember(new Member
+                {
+                    DimensionId = dim.Id, ParentId = parentId, Name = childName,
+                    Description = resolvedDesc, Level = level, SortOrder = order++,
+                    ConsolOperator = resolvedOp, Formula = formula, TimeBalance = timeBal
+                });
+                memberMap[childName] = id;
             }
         }
 

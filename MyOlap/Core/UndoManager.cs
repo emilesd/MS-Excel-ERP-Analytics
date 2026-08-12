@@ -6,12 +6,14 @@ namespace MyOlap.Core;
 /// </summary>
 public class UndoManager
 {
-    private const int MaxUndoLevels = 3;
+    public const int MaxUndoLevels = 5;
     private readonly LinkedList<ViewState> _stack = new();
+    private int _totalPushed;
 
-    public void Push(ViewState state) 
+    public void Push(ViewState state)
     {
         _stack.AddLast(state.Clone());
+        _totalPushed++;
         while (_stack.Count > MaxUndoLevels)
             _stack.RemoveFirst();
     }
@@ -26,6 +28,9 @@ public class UndoManager
 
     public bool CanUndo => _stack.Count > 0;
     public int Count => _stack.Count;
+    public int TotalPushed => _totalPushed;
+    // True when the user has exhausted all stored undo steps but DID perform operations.
+    public bool LimitReached => _totalPushed > MaxUndoLevels && _stack.Count == 0;
 
-    public void Clear() => _stack.Clear();
+    public void Clear() { _stack.Clear(); _totalPushed = 0; }
 }

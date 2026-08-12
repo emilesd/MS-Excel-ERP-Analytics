@@ -1,4 +1,5 @@
-﻿using ExcelDna.Integration;
+﻿using System.Runtime.InteropServices;
+using ExcelDna.Integration;
 using MyOlap.Core;
 using MyOlap.Data;
 using MyOlap.Reports;
@@ -10,10 +11,19 @@ namespace MyOlap;
 /// </summary>
 public class AddIn : IExcelAddIn
 {
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool SetDllDirectory(string lpPathName);
+
     public void AutoOpen()
     {
         try
         {
+            // P/Invoke for e_sqlite3.dll searches Excel's directory by default.
+            // Adding the XLL directory ensures the native SQLite DLL is found.
+            var xllDir = System.IO.Path.GetDirectoryName(ExcelDnaUtil.XllPath);
+            if (!string.IsNullOrEmpty(xllDir))
+                SetDllDirectory(xllDir);
+
             SqliteRepository.Instance.EnsureDatabaseCreated();
         }
         catch (Exception ex)

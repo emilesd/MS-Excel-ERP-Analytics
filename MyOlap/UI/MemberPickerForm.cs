@@ -10,12 +10,10 @@ public class MemberPickerForm : Form
     private readonly TextBox _txtSearch;
     private readonly TreeView _tree;
     private readonly ListBox _lbSelected;
-    private readonly Button _btnAdd;
     private readonly Button _btnRemove;
     private readonly Button _btnMoveUp;
     private readonly Button _btnMoveDown;
     private readonly Button _btnClear;
-    private readonly Button _btnRefresh;
     private readonly RadioButton _rbRow;
     private readonly RadioButton _rbCol;
     private readonly Button _btnOk;
@@ -28,17 +26,24 @@ public class MemberPickerForm : Form
     public List<long> SelectedMemberIds => _selectedMembers.Select(m => m.Id).ToList();
     public long SelectedDimensionId { get; private set; }
     public bool PlaceOnRow => _rbRow.Checked;
-    public bool RefreshRequested { get; private set; }
 
     [Obsolete("Use SelectedMemberIds instead")]
     public long SelectedMemberId => _selectedMembers.Count > 0 ? _selectedMembers[0].Id : 0;
 
-    public MemberPickerForm(long modelId, long initialDimensionId = 0)
+    private long _initialDimensionId;
+    private List<(long Id, string Name)> _initialAxisMembers = new();
+    private bool _axisPrePopulated;
+
+    public MemberPickerForm(long modelId, long initialDimensionId = 0,
+        List<(long Id, string Name)>? initialAxisMembers = null,
+        bool initialPlaceOnRow = true)
     {
         AutoScaleMode = AutoScaleMode.Font;
-        Text = "Member Selection";
+        Text = "Pick Members";
+        // Cap height to screen working area so OK/Cancel are always visible
+        int screenH = Screen.PrimaryScreen?.WorkingArea.Height ?? 800;
         Width = 1380;
-        Height = 1400;
+        Height = Math.Min(800, screenH - 40);
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.Sizable;
         MaximizeBox = true;
@@ -60,32 +65,31 @@ public class MemberPickerForm : Form
             ShowLines = true,
             ShowRootLines = true
         };
-        _tree.NodeMouseDoubleClick += (_, e) => AddSingleNodeFromTree(e.Node);
+        _tree.NodeMouseDoubleClick += (_, e) => ToggleSingleNode(e.Node);
         _tree.AfterCheck += OnTreeAfterCheck;
 
-        _btnAdd = new Button { Text = "\u25B6", Width = 44, Height = 36, Font = new System.Drawing.Font("Segoe UI", 12f) };
-        _btnAdd.Click += (_, _) => AddCheckedFromTree();
-
-        _btnRemove = new Button { Text = "\u25C0", Width = 44, Height = 36, Font = new System.Drawing.Font("Segoe UI", 12f) };
+        _btnRemove = new Button
+        {
+            Text = "Remove",
+            Height = 36,
+            Font = new System.Drawing.Font("Segoe UI", 9f)
+        };
         _btnRemove.Click += (_, _) => RemoveSelectedFromList();
 
-        _btnMoveUp = new Button { Text = "\u25B2", Width = 44, Height = 34 };
+        _btnMoveUp = new Button { Text = "▲", Width = 44, Height = 34 };
         _btnMoveUp.Click += (_, _) => MoveSelected(-1);
 
-        _btnMoveDown = new Button { Text = "\u25BC", Width = 44, Height = 34 };
+        _btnMoveDown = new Button { Text = "▼", Width = 44, Height = 34 };
         _btnMoveDown.Click += (_, _) => MoveSelected(1);
 
         _btnClear = new Button { Text = "Clear", Width = 90, Height = 30 };
         _btnClear.Click += (_, _) => ClearSelected();
 
-        _btnRefresh = new Button { Text = "Refresh", Width = 90, Height = 30 };
-        _btnRefresh.Click += (_, _) => LoadTree();
-
         var lblSelected = new Label { Text = "Selected Members:", AutoSize = true };
         _lbSelected = new ListBox { SelectionMode = SelectionMode.MultiExtended };
 
-        _rbRow = new RadioButton { Text = "Place on Rows", AutoSize = true, Checked = true };
-        _rbCol = new RadioButton { Text = "Place on Columns", AutoSize = true };
+        _rbRow = new RadioButton { Text = "Place on Rows", AutoSize = true, Checked = initialPlaceOnRow };
+        _rbCol = new RadioButton { Text = "Place on Columns", AutoSize = true, Checked = !initialPlaceOnRow };
 
         _btnOk = new Button { Text = "OK", Width = 100, Height = 36, DialogResult = DialogResult.OK };
         _btnOk.Click += (_, _) =>
@@ -100,9 +104,9 @@ public class MemberPickerForm : Form
         Controls.AddRange(new Control[]
         {
             _cbDimension, _txtSearch,
-            _tree, _btnAdd, _btnRemove,
+            _tree, _btnRemove,
             lblSelected, _lbSelected,
-            _btnMoveUp, _btnMoveDown, _btnClear, _btnRefresh,
+            _btnMoveUp, _btnMoveDown, _btnClear,
             _rbRow, _rbCol, _btnOk, _btnCancel
         });
 
@@ -111,6 +115,9 @@ public class MemberPickerForm : Form
 
         LayoutControls();
         Resize += (_, _) => LayoutControls();
+
+        _initialDimensionId = initialDimensionId;
+        _initialAxisMembers = initialAxisMembers ?? new();
 
         _dimensions = SqliteRepository.Instance.GetDimensions(modelId);
         int initialIndex = 0;
@@ -130,61 +137,47 @@ public class MemberPickerForm : Form
         int cw = ClientSize.Width;
         int ch = ClientSize.Height;
 
-        // Pane width calculations
-        int centerBtnW = 56;
         int rightColW = 100;
-        int leftPaneW = (cw - pad * 2 - centerBtnW - rightColW - 36) / 2;
-        int rightPaneX = pad + leftPaneW + centerBtnW + 20;
+        int gapW = 16;
+        int leftPaneW = (cw - pad * 2 - gapW - rightColW - 16) / 2;
+        int rightPaneX = pad + leftPaneW + gapW;
         int rightPaneW = cw - rightPaneX - rightColW - 16;
 
-        // Row 1: Dimension dropdown
         int topY = pad;
         _cbDimension.Left = pad;
         _cbDimension.Top = topY;
         _cbDimension.Width = Math.Min(240, leftPaneW);
 
-        // Row 2: Search box (within left pane area, full width)
         int searchTop = topY + _cbDimension.Height + 12;
         _txtSearch.Left = pad;
         _txtSearch.Top = searchTop;
         _txtSearch.Width = leftPaneW;
         _txtSearch.PlaceholderText = "Enter a member name to search...";
 
-        // "Selected Members:" label
-        var lblSelected = Controls[5] as Label;
+        var lblSelected = Controls[4] as Label;
         lblSelected!.Left = rightPaneX;
         lblSelected.Top = searchTop;
 
-        // Main pane area
         int treeTop = searchTop + 40;
-        int bottomRowH = 52;
+        int bottomRowH = 56;
         int radioY = ch - bottomRowH;
-        int paneBottom = radioY - 16;
-        int paneH = paneBottom - treeTop;
+        int paneH = radioY - 16 - treeTop;
+        if (paneH < 60) paneH = 60;
 
-        // Left tree
         _tree.Left = pad;
         _tree.Top = treeTop;
         _tree.Width = leftPaneW;
         _tree.Height = paneH;
 
-        // Center ▶/◀ buttons
-        int centerX = pad + leftPaneW + 6;
-        int midY = treeTop + (paneH / 2) - 44;
-        _btnAdd.Left = centerX;
-        _btnAdd.Top = midY;
-        _btnAdd.Width = centerBtnW - 12;
-        _btnRemove.Left = centerX;
-        _btnRemove.Top = midY + 46;
-        _btnRemove.Width = centerBtnW - 12;
-
-        // Right selected list
         _lbSelected.Left = rightPaneX;
         _lbSelected.Top = treeTop;
         _lbSelected.Width = rightPaneW;
         _lbSelected.Height = paneH;
 
-        // Far-right buttons
+        _btnRemove.Left = rightPaneX + rightPaneW - 160;
+        _btnRemove.Top = searchTop - 2;
+        _btnRemove.Width = 160;
+
         int orderX = rightPaneX + rightPaneW + 10;
         _btnMoveUp.Left = orderX;
         _btnMoveUp.Top = treeTop + 6;
@@ -195,78 +188,90 @@ public class MemberPickerForm : Form
         _btnClear.Left = orderX;
         _btnClear.Top = treeTop + 110;
         _btnClear.Width = rightColW;
-        _btnRefresh.Left = orderX;
-        _btnRefresh.Top = treeTop + 148;
-        _btnRefresh.Width = rightColW;
 
-        // Bottom row
         _rbRow.Left = pad;
-        _rbRow.Top = radioY;
+        _rbRow.Top = radioY + 10;
         _rbCol.Left = _rbRow.Right + 24;
-        _rbCol.Top = radioY;
+        _rbCol.Top = radioY + 10;
 
         _btnCancel.Left = cw - pad - _btnCancel.Width;
-        _btnCancel.Top = radioY;
+        _btnCancel.Top = radioY + 4;
         _btnOk.Left = _btnCancel.Left - _btnOk.Width - 12;
-        _btnOk.Top = radioY;
+        _btnOk.Top = radioY + 4;
     }
 
     private void OnDimensionChanged()
     {
         _selectedMembers.Clear();
+        if (!_axisPrePopulated && _cbDimension.SelectedIndex >= 0 &&
+            _dimensions[_cbDimension.SelectedIndex].Id == _initialDimensionId &&
+            _initialAxisMembers.Count > 0)
+        {
+            foreach (var m in _initialAxisMembers)
+                _selectedMembers.Add(m);
+            _axisPrePopulated = true;
+        }
         RefreshSelectedList();
         _txtSearch.Text = "";
         LoadTree();
     }
 
+    private HashSet<long> GetSelectedIds() => _selectedMembers.Select(m => m.Id).ToHashSet();
+
     private void LoadTree()
     {
+        var selectedIds = GetSelectedIds();
+        _suppressCheck = true;
         _tree.BeginUpdate();
         _tree.Nodes.Clear();
-        if (_cbDimension.SelectedIndex < 0) { _tree.EndUpdate(); return; }
+        if (_cbDimension.SelectedIndex < 0) { _tree.EndUpdate(); _suppressCheck = false; return; }
 
         var dim = _dimensions[_cbDimension.SelectedIndex];
         _currentRoots = DimensionTree.BuildTree(dim.Id);
         foreach (var root in _currentRoots)
-            _tree.Nodes.Add(BuildNode(root));
-        _tree.ExpandAll();
+            _tree.Nodes.Add(BuildNode(root, selectedIds));
+        _tree.CollapseAll();
         _tree.EndUpdate();
+        _suppressCheck = false;
     }
 
     private void ApplySearchFilter()
     {
         var query = _txtSearch.Text.Trim();
+        var selectedIds = GetSelectedIds();
+        _suppressCheck = true;
         _tree.BeginUpdate();
         _tree.Nodes.Clear();
 
         if (string.IsNullOrEmpty(query))
         {
             foreach (var root in _currentRoots)
-                _tree.Nodes.Add(BuildNode(root));
-            _tree.ExpandAll();
+                _tree.Nodes.Add(BuildNode(root, selectedIds));
+            _tree.CollapseAll();
         }
         else
         {
             foreach (var root in _currentRoots)
             {
-                var filtered = BuildFilteredNode(root, query);
+                var filtered = BuildFilteredNode(root, query, selectedIds);
                 if (filtered != null)
                     _tree.Nodes.Add(filtered);
             }
             _tree.ExpandAll();
         }
         _tree.EndUpdate();
+        _suppressCheck = false;
     }
 
-    private static TreeNode? BuildFilteredNode(DimensionTreeNode dtNode, string query)
+    private static TreeNode? BuildFilteredNode(DimensionTreeNode dtNode, string query, HashSet<long> selectedIds)
     {
-        bool selfMatch = dtNode.Member.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
+        bool selfMatch = dtNode.Member.DisplayName.Contains(query, StringComparison.OrdinalIgnoreCase)
             || (dtNode.Member.Description ?? "").Contains(query, StringComparison.OrdinalIgnoreCase);
 
         var childNodes = new List<TreeNode>();
         foreach (var child in dtNode.Children)
         {
-            var filtered = BuildFilteredNode(child, query);
+            var filtered = BuildFilteredNode(child, query, selectedIds);
             if (filtered != null)
                 childNodes.Add(filtered);
         }
@@ -274,7 +279,11 @@ public class MemberPickerForm : Form
         if (!selfMatch && childNodes.Count == 0)
             return null;
 
-        var tn = new TreeNode(dtNode.Member.Name) { Tag = dtNode.Member.Id };
+        var tn = new TreeNode(dtNode.Member.DisplayName)
+        {
+            Tag = dtNode.Member.Id,
+            Checked = selectedIds.Contains(dtNode.Member.Id)
+        };
         if (selfMatch)
             tn.BackColor = System.Drawing.Color.LightYellow;
         foreach (var cn in childNodes)
@@ -287,9 +296,36 @@ public class MemberPickerForm : Form
     private void OnTreeAfterCheck(object? sender, TreeViewEventArgs e)
     {
         if (_suppressCheck || e.Node == null) return;
-        _suppressCheck = true;
-        SetChildrenChecked(e.Node, e.Node.Checked);
-        _suppressCheck = false;
+        RebuildSelectionFromTree();
+        RefreshSelectedList();
+    }
+
+    // Rebuilds _selectedMembers from all checked nodes in the tree.
+    // Each node is independent — checking a parent does NOT cascade to children.
+    private void RebuildSelectionFromTree()
+    {
+        var checkedNodes = new List<TreeNode>();
+        CollectAllChecked(_tree.Nodes, checkedNodes);
+        var checkedIds = checkedNodes.Select(n => (long)n.Tag!).ToHashSet();
+
+        _selectedMembers.RemoveAll(m => !checkedIds.Contains(m.Id));
+
+        var existingIds = _selectedMembers.Select(m => m.Id).ToHashSet();
+        foreach (var node in checkedNodes)
+        {
+            if (node.Tag is long id && !existingIds.Contains(id))
+                _selectedMembers.Add((id, node.Text));
+        }
+    }
+
+    private static void CollectAllChecked(TreeNodeCollection nodes, List<TreeNode> results)
+    {
+        foreach (TreeNode node in nodes)
+        {
+            if (node.Checked && node.Tag is long)
+                results.Add(node);
+            CollectAllChecked(node.Nodes, results);
+        }
     }
 
     private static void SetChildrenChecked(TreeNode node, bool isChecked)
@@ -301,51 +337,36 @@ public class MemberPickerForm : Form
         }
     }
 
-    private void AddCheckedFromTree()
+    private void ToggleSingleNode(TreeNode? node)
     {
-        var checkedNodes = new List<TreeNode>();
-        CollectCheckedLeaves(_tree.Nodes, checkedNodes);
-
-        if (checkedNodes.Count == 0 && _tree.SelectedNode?.Tag is long id)
-        {
-            AddSingleNodeFromTree(_tree.SelectedNode);
-            return;
-        }
-
-        foreach (var node in checkedNodes)
-        {
-            if (node.Tag is not long nid) continue;
-            if (_selectedMembers.Any(m => m.Id == nid)) continue;
-            _selectedMembers.Add((nid, node.Text));
-        }
-        RefreshSelectedList();
-    }
-
-    private static void CollectCheckedLeaves(TreeNodeCollection nodes, List<TreeNode> results)
-    {
-        foreach (TreeNode node in nodes)
-        {
-            if (node.Checked && node.Tag is long)
-                results.Add(node);
-            else
-                CollectCheckedLeaves(node.Nodes, results);
-        }
-    }
-
-    private void AddSingleNodeFromTree(TreeNode? node)
-    {
-        if (node?.Tag is not long id) return;
-        if (_selectedMembers.Any(m => m.Id == id)) return;
-        _selectedMembers.Add((id, node.Text));
+        if (node == null) return;
+        _suppressCheck = true;
+        node.Checked = !node.Checked;
+        _suppressCheck = false;
+        RebuildSelectionFromTree();
         RefreshSelectedList();
     }
 
     private void RemoveSelectedFromList()
     {
         var indices = _lbSelected.SelectedIndices.Cast<int>().OrderByDescending(i => i).ToList();
+        var removedIds = indices.Select(i => _selectedMembers[i].Id).ToHashSet();
+        _suppressCheck = true;
+        UncheckNodes(_tree.Nodes, removedIds);
+        _suppressCheck = false;
         foreach (var idx in indices)
             _selectedMembers.RemoveAt(idx);
         RefreshSelectedList();
+    }
+
+    private static void UncheckNodes(TreeNodeCollection nodes, HashSet<long>? ids)
+    {
+        foreach (TreeNode node in nodes)
+        {
+            if (ids == null || (node.Tag is long id && ids.Contains(id)))
+                node.Checked = false;
+            UncheckNodes(node.Nodes, ids);
+        }
     }
 
     private void MoveSelected(int direction)
@@ -363,6 +384,9 @@ public class MemberPickerForm : Form
     private void ClearSelected()
     {
         _selectedMembers.Clear();
+        _suppressCheck = true;
+        UncheckNodes(_tree.Nodes, null);
+        _suppressCheck = false;
         RefreshSelectedList();
     }
 
@@ -374,11 +398,15 @@ public class MemberPickerForm : Form
         _btnOk.Enabled = _selectedMembers.Count > 0;
     }
 
-    private static TreeNode BuildNode(DimensionTreeNode dtNode)
+    private static TreeNode BuildNode(DimensionTreeNode dtNode, HashSet<long> selectedIds)
     {
-        var tn = new TreeNode(dtNode.Member.Name) { Tag = dtNode.Member.Id };
+        var tn = new TreeNode(dtNode.Member.DisplayName)
+        {
+            Tag = dtNode.Member.Id,
+            Checked = selectedIds.Contains(dtNode.Member.Id)
+        };
         foreach (var child in dtNode.Children)
-            tn.Nodes.Add(BuildNode(child));
+            tn.Nodes.Add(BuildNode(child, selectedIds));
         return tn;
     }
 }

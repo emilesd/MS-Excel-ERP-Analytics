@@ -18,6 +18,30 @@ public sealed class SqliteRepository : IDisposable
     private readonly string _dbPath;
     private SqliteConnection? _conn;
 
+    // In-memory caches — invalidated on relevant mutations.
+    private readonly Dictionary<long, List<Member>> _childrenCache = new();
+    private readonly Dictionary<long, List<Member>> _membersCache = new();
+    private readonly Dictionary<long, Member?> _memberCache = new();
+    private readonly Dictionary<long, List<Dimension>> _dimensionsCache = new();
+    private readonly Dictionary<long, ModelSettings> _settingsCache = new();
+
+    public void InvalidateMemberCache()
+    {
+        _childrenCache.Clear();
+        _membersCache.Clear();
+        _memberCache.Clear();
+    }
+
+    private void InvalidateDimensionCache(long modelId)
+    {
+        _dimensionsCache.Remove(modelId);
+    }
+
+    private void InvalidateSettingsCache(long modelId)
+    {
+        _settingsCache.Remove(modelId);
+    }
+
     private SqliteRepository()
     {
         InitBatteries();
@@ -33,61 +57,86 @@ public sealed class SqliteRepository : IDisposable
         if (_batteriesInitialized) return;
         try
         {
-            RegisterNativeResolver();
+            // ExcelDNA packed XLL (LoadFromBytes=true) does NOT extract native DLLs to disk.
+            // Register a resolver on the provider assembly so P/Invoke finds e_sqlite3.dll
+            // from the AddIn directory where the XLL lives.
+            NativeLibrary.SetDllImportResolver(
+                typeof(SQLitePCL.SQLite3Provider_e_sqlite3).Assembly,
+                ResolveNativeSqlite3);
+
             SQLitePCL.Batteries_V2.Init();
+            _batteriesInitialized = true;
+        }
+        catch (InvalidOperationException)
+        {
+            // Batteries_V2.Init() throws if the [ModuleInitializer] already set the provider.
             _batteriesInitialized = true;
         }
         catch (Exception ex)
         {
             System.Windows.Forms.MessageBox.Show(
-                $"SQLite init error:\n{ex.Message}\n\nInner: {ex.InnerException?.Message}\n\nStack: {ex.StackTrace}",
+                $"SQLite init error:\n{ex.Message}\n\nInner: {ex.InnerException?.Message}",
                 "MyOlap SQLite Init", System.Windows.Forms.MessageBoxButtons.OK);
         }
     }
 
-    /// <summary>
-    /// Registers a native library resolver that searches the add-in's directory
-    /// and the runtimes subdirectory for e_sqlite3.dll.
-    /// </summary>
-    private static void RegisterNativeResolver()
+    private static IntPtr ResolveNativeSqlite3(string libraryName, Assembly asm, DllImportSearchPath? searchPath)
     {
-        NativeLibrary.SetDllImportResolver(
-            typeof(SQLitePCL.raw).Assembly,
-            (libraryName, assembly, searchPath) =>
+        if (!libraryName.Contains("e_sqlite3")) return IntPtr.Zero;
+
+        var candidates = new List<string>();
+
+        // AddIn directory (where the XLL is registered) — primary location
+        try
+        {
+            var xllPath = ExcelDna.Integration.ExcelDnaUtil.XllPath;
+            var xllDir = Path.GetDirectoryName(xllPath) ?? "";
+            if (!string.IsNullOrEmpty(xllDir))
             {
-                if (!libraryName.Contains("e_sqlite3"))
-                    return IntPtr.Zero;
+                candidates.Add(Path.Combine(xllDir, "e_sqlite3.dll"));
+                candidates.Add(Path.Combine(xllDir, "runtimes", "win-x64", "native", "e_sqlite3.dll"));
+            }
+        }
+        catch { }
 
-                var candidates = new List<string>();
+        // Fallback: assembly location (valid when NOT packed / in TestConsole)
+        var asmDir = Path.GetDirectoryName(asm.Location) ?? "";
+        if (!string.IsNullOrEmpty(asmDir))
+        {
+            candidates.Add(Path.Combine(asmDir, "e_sqlite3.dll"));
+            candidates.Add(Path.Combine(asmDir, "runtimes", "win-x64", "native", "e_sqlite3.dll"));
+        }
 
-                var asmDir = Path.GetDirectoryName(assembly.Location) ?? "";
-                candidates.Add(Path.Combine(asmDir, "e_sqlite3.dll"));
-                candidates.Add(Path.Combine(asmDir, "runtimes", "win-x64", "native", "e_sqlite3.dll"));
-
-                var exeDir = Path.GetDirectoryName(typeof(SqliteRepository).Assembly.Location) ?? "";
-                candidates.Add(Path.Combine(exeDir, "e_sqlite3.dll"));
-                candidates.Add(Path.Combine(exeDir, "runtimes", "win-x64", "native", "e_sqlite3.dll"));
-
-                var baseDir = AppContext.BaseDirectory;
-                candidates.Add(Path.Combine(baseDir, "e_sqlite3.dll"));
-                candidates.Add(Path.Combine(baseDir, "runtimes", "win-x64", "native", "e_sqlite3.dll"));
-
-                foreach (var path in candidates)
-                {
-                    if (File.Exists(path) && NativeLibrary.TryLoad(path, out var handle))
-                        return handle;
-                }
-
-                return IntPtr.Zero;
-            });
+        foreach (var path in candidates)
+        {
+            if (File.Exists(path) && NativeLibrary.TryLoad(path, out var handle))
+                return handle;
+        }
+        return IntPtr.Zero;
     }
 
     private SqliteConnection GetConnection()
     {
         if (_conn is { State: System.Data.ConnectionState.Open })
             return _conn;
-        _conn = new SqliteConnection($"Data Source={_dbPath}");
-        _conn.Open();
+
+        var csb = new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder { DataSource = _dbPath };
+        _conn = new SqliteConnection(csb.ToString());
+        try
+        {
+            _conn.Open();
+        }
+        catch
+        {
+            // Open failed — existing DB is likely the old SQLCipher-encrypted file.
+            // Rename it and start fresh; user will need to re-import data.
+            _conn.Dispose();
+            _conn = null;
+            if (File.Exists(_dbPath))
+                File.Move(_dbPath, _dbPath + ".encrypted_backup", overwrite: true);
+            _conn = new SqliteConnection(csb.ToString());
+            _conn.Open();
+        }
         using var cmd = _conn.CreateCommand();
         cmd.CommandText = "PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;";
         cmd.ExecuteNonQuery();
@@ -159,6 +208,33 @@ CREATE TABLE IF NOT EXISTS ModelSettings (
             alterCmd.CommandText = "ALTER TABLE Members ADD COLUMN ConsolOperator TEXT NOT NULL DEFAULT '+'";
             alterCmd.ExecuteNonQuery();
         }
+
+        MigrateColumn(conn, "Members", "Formula", "TEXT NOT NULL DEFAULT ''");
+        MigrateColumn(conn, "Members", "TimeBalance", "TEXT NOT NULL DEFAULT ''");
+        MigrateColumn(conn, "Members", "SharedFromId", "INTEGER REFERENCES Members(Id)");
+        MigrateColumn(conn, "ModelSettings", "PreserveFormulas", "INTEGER NOT NULL DEFAULT 0");
+
+        // Last-used OLAP layout per model (survives Excel restart; same durability as settings).
+        using (var viewCmd = conn.CreateCommand())
+        {
+            viewCmd.CommandText = @"
+CREATE TABLE IF NOT EXISTS ModelViews (
+    ModelId     INTEGER PRIMARY KEY REFERENCES Models(Id) ON DELETE CASCADE,
+    ViewPayload TEXT NOT NULL DEFAULT '',
+    UpdatedUtc  TEXT NOT NULL DEFAULT ''
+);";
+            viewCmd.ExecuteNonQuery();
+        }
+    }
+
+    private static void MigrateColumn(SqliteConnection conn, string table, string column, string definition)
+    {
+        using var chk = conn.CreateCommand();
+        chk.CommandText = $"SELECT COUNT(*) FROM pragma_table_info('{table}') WHERE name='{column}'";
+        if (Convert.ToInt64(chk.ExecuteScalar()) > 0) return;
+        using var alt = conn.CreateCommand();
+        alt.CommandText = $"ALTER TABLE {table} ADD COLUMN {column} {definition}";
+        alt.ExecuteNonQuery();
     }
 
     #region Models
@@ -218,11 +294,14 @@ CREATE TABLE IF NOT EXISTS ModelSettings (
         cmd.Parameters.AddWithValue("$n", dim.Name);
         cmd.Parameters.AddWithValue("$t", (int)dim.DimType);
         cmd.Parameters.AddWithValue("$s", dim.SortOrder);
-        return (long)cmd.ExecuteScalar()!;
+        var id = (long)cmd.ExecuteScalar()!;
+        InvalidateDimensionCache(dim.ModelId);
+        return id;
     }
 
     public List<Dimension> GetDimensions(long modelId)
     {
+        if (_dimensionsCache.TryGetValue(modelId, out var cached)) return cached;
         var conn = GetConnection();
         using var cmd = conn.CreateCommand();
         cmd.CommandText =
@@ -241,6 +320,7 @@ CREATE TABLE IF NOT EXISTS ModelSettings (
                 SortOrder = rdr.GetInt32(4)
             });
         }
+        _dimensionsCache[modelId] = list;
         return list;
     }
 
@@ -255,15 +335,22 @@ CREATE TABLE IF NOT EXISTS ModelSettings (
         cmd.Parameters.AddWithValue("$s", dim.SortOrder);
         cmd.Parameters.AddWithValue("$id", dim.Id);
         cmd.ExecuteNonQuery();
+        InvalidateDimensionCache(dim.ModelId);
     }
 
     public void DeleteDimension(long dimId)
     {
         var conn = GetConnection();
         using var cmd = conn.CreateCommand();
+        // Fetch modelId before deleting so we can invalidate the right cache entry.
+        using var qry = conn.CreateCommand();
+        qry.CommandText = "SELECT ModelId FROM Dimensions WHERE Id = $id";
+        qry.Parameters.AddWithValue("$id", dimId);
+        var modelId = qry.ExecuteScalar() is long mid ? mid : -1L;
         cmd.CommandText = "DELETE FROM Dimensions WHERE Id = $id";
         cmd.Parameters.AddWithValue("$id", dimId);
         cmd.ExecuteNonQuery();
+        if (modelId >= 0) InvalidateDimensionCache(modelId);
     }
 
     #endregion
@@ -275,8 +362,8 @@ CREATE TABLE IF NOT EXISTS ModelSettings (
         var conn = GetConnection();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = @"
-INSERT INTO Members (DimensionId, ParentId, Name, Description, Level, SortOrder, ConsolOperator)
-VALUES ($d, $p, $n, $desc, $l, $s, $co);
+INSERT INTO Members (DimensionId, ParentId, Name, Description, Level, SortOrder, ConsolOperator, Formula, TimeBalance, SharedFromId)
+VALUES ($d, $p, $n, $desc, $l, $s, $co, $f, $tb, $sf);
 SELECT last_insert_rowid();";
         cmd.Parameters.AddWithValue("$d", member.DimensionId);
         cmd.Parameters.AddWithValue("$p", (object?)member.ParentId ?? DBNull.Value);
@@ -285,15 +372,21 @@ SELECT last_insert_rowid();";
         cmd.Parameters.AddWithValue("$l", member.Level);
         cmd.Parameters.AddWithValue("$s", member.SortOrder);
         cmd.Parameters.AddWithValue("$co", member.ConsolOperator ?? "+");
-        return (long)cmd.ExecuteScalar()!;
+        cmd.Parameters.AddWithValue("$f", member.Formula ?? "");
+        cmd.Parameters.AddWithValue("$tb", member.TimeBalance ?? "");
+        cmd.Parameters.AddWithValue("$sf", (object?)member.SharedFromId ?? DBNull.Value);
+        var id = (long)cmd.ExecuteScalar()!;
+        InvalidateMemberCache();
+        return id;
     }
 
     public List<Member> GetMembers(long dimensionId)
     {
+        if (_membersCache.TryGetValue(dimensionId, out var hit)) return hit;
         var conn = GetConnection();
         using var cmd = conn.CreateCommand();
         cmd.CommandText =
-            "SELECT Id, DimensionId, ParentId, Name, Description, Level, SortOrder, ConsolOperator FROM Members WHERE DimensionId = $d ORDER BY SortOrder";
+            "SELECT Id, DimensionId, ParentId, Name, Description, Level, SortOrder, ConsolOperator, Formula, TimeBalance, SharedFromId FROM Members WHERE DimensionId = $d ORDER BY SortOrder";
         cmd.Parameters.AddWithValue("$d", dimensionId);
         using var rdr = cmd.ExecuteReader();
         var list = new List<Member>();
@@ -308,18 +401,40 @@ SELECT last_insert_rowid();";
                 Description = rdr.GetString(4),
                 Level = rdr.GetInt32(5),
                 SortOrder = rdr.GetInt32(6),
-                ConsolOperator = rdr.IsDBNull(7) ? "+" : rdr.GetString(7)
+                ConsolOperator = rdr.IsDBNull(7) ? "+" : rdr.GetString(7),
+                Formula = rdr.IsDBNull(8) ? "" : rdr.GetString(8),
+                TimeBalance = rdr.IsDBNull(9) ? "" : rdr.GetString(9),
+                SharedFromId = rdr.IsDBNull(10) ? null : rdr.GetInt64(10)
             });
         }
+        _membersCache[dimensionId] = list;
+
+        // Pre-warm per-member caches so GetMember() and GetChildren() never hit the DB
+        // for any member in this dimension after this single bulk load.
+        foreach (var m in list)
+            _memberCache[m.Id] = m;
+
+        var childMap = new Dictionary<long, List<Member>>();
+        foreach (var m in list)
+        {
+            var key = m.ParentId ?? 0L;
+            if (!childMap.TryGetValue(key, out var siblings))
+                childMap[key] = siblings = new List<Member>();
+            siblings.Add(m);
+        }
+        foreach (var m in list)
+            _childrenCache[m.Id] = childMap.TryGetValue(m.Id, out var ch) ? ch : new List<Member>();
+
         return list;
     }
 
     public List<Member> GetChildren(long parentId)
     {
+        if (_childrenCache.TryGetValue(parentId, out var hit)) return hit;
         var conn = GetConnection();
         using var cmd = conn.CreateCommand();
         cmd.CommandText =
-            "SELECT Id, DimensionId, ParentId, Name, Description, Level, SortOrder, ConsolOperator FROM Members WHERE ParentId = $p ORDER BY SortOrder";
+            "SELECT Id, DimensionId, ParentId, Name, Description, Level, SortOrder, ConsolOperator, Formula, TimeBalance, SharedFromId FROM Members WHERE ParentId = $p ORDER BY SortOrder";
         cmd.Parameters.AddWithValue("$p", parentId);
         using var rdr = cmd.ExecuteReader();
         var list = new List<Member>();
@@ -334,36 +449,20 @@ SELECT last_insert_rowid();";
                 Description = rdr.GetString(4),
                 Level = rdr.GetInt32(5),
                 SortOrder = rdr.GetInt32(6),
-                ConsolOperator = rdr.IsDBNull(7) ? "+" : rdr.GetString(7)
+                ConsolOperator = rdr.IsDBNull(7) ? "+" : rdr.GetString(7),
+                Formula = rdr.IsDBNull(8) ? "" : rdr.GetString(8),
+                TimeBalance = rdr.IsDBNull(9) ? "" : rdr.GetString(9),
+                SharedFromId = rdr.IsDBNull(10) ? null : rdr.GetInt64(10)
             });
         }
+        _childrenCache[parentId] = list;
         return list;
     }
 
     public List<Member> GetRootMembers(long dimensionId)
     {
-        var conn = GetConnection();
-        using var cmd = conn.CreateCommand();
-        cmd.CommandText =
-            "SELECT Id, DimensionId, ParentId, Name, Description, Level, SortOrder, ConsolOperator FROM Members WHERE DimensionId = $d AND ParentId IS NULL ORDER BY SortOrder";
-        cmd.Parameters.AddWithValue("$d", dimensionId);
-        using var rdr = cmd.ExecuteReader();
-        var list = new List<Member>();
-        while (rdr.Read())
-        {
-            list.Add(new Member
-            {
-                Id = rdr.GetInt64(0),
-                DimensionId = rdr.GetInt64(1),
-                ParentId = null,
-                Name = rdr.GetString(3),
-                Description = rdr.GetString(4),
-                Level = rdr.GetInt32(5),
-                SortOrder = rdr.GetInt32(6),
-                ConsolOperator = rdr.IsDBNull(7) ? "+" : rdr.GetString(7)
-            });
-        }
-        return list;
+        // GetMembers is already cached — filter in memory instead of a separate DB query.
+        return GetMembers(dimensionId).Where(m => m.ParentId == null).ToList();
     }
 
     public List<Member> GetAllDescendants(long memberId)
@@ -386,14 +485,15 @@ SELECT last_insert_rowid();";
 
     public Member? GetMember(long memberId)
     {
+        if (_memberCache.TryGetValue(memberId, out var hit)) return hit;
         var conn = GetConnection();
         using var cmd = conn.CreateCommand();
         cmd.CommandText =
-            "SELECT Id, DimensionId, ParentId, Name, Description, Level, SortOrder, ConsolOperator FROM Members WHERE Id = $id";
+            "SELECT Id, DimensionId, ParentId, Name, Description, Level, SortOrder, ConsolOperator, Formula, TimeBalance, SharedFromId FROM Members WHERE Id = $id";
         cmd.Parameters.AddWithValue("$id", memberId);
         using var rdr = cmd.ExecuteReader();
-        if (!rdr.Read()) return null;
-        return new Member
+        if (!rdr.Read()) { _memberCache[memberId] = null; return null; }
+        var m = new Member
         {
             Id = rdr.GetInt64(0),
             DimensionId = rdr.GetInt64(1),
@@ -402,8 +502,13 @@ SELECT last_insert_rowid();";
             Description = rdr.GetString(4),
             Level = rdr.GetInt32(5),
             SortOrder = rdr.GetInt32(6),
-            ConsolOperator = rdr.IsDBNull(7) ? "+" : rdr.GetString(7)
+            ConsolOperator = rdr.IsDBNull(7) ? "+" : rdr.GetString(7),
+            Formula = rdr.IsDBNull(8) ? "" : rdr.GetString(8),
+            TimeBalance = rdr.IsDBNull(9) ? "" : rdr.GetString(9),
+            SharedFromId = rdr.IsDBNull(10) ? null : rdr.GetInt64(10)
         };
+        _memberCache[memberId] = m;
+        return m;
     }
 
     public void UpdateMember(Member m)
@@ -411,15 +516,19 @@ SELECT last_insert_rowid();";
         var conn = GetConnection();
         using var cmd = conn.CreateCommand();
         cmd.CommandText =
-            "UPDATE Members SET ParentId=$p, Name=$n, Description=$desc, Level=$l, SortOrder=$s, ConsolOperator=$co WHERE Id=$id";
+            "UPDATE Members SET ParentId=$p, Name=$n, Description=$desc, Level=$l, SortOrder=$s, ConsolOperator=$co, Formula=$f, TimeBalance=$tb, SharedFromId=$sf WHERE Id=$id";
         cmd.Parameters.AddWithValue("$p", (object?)m.ParentId ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$n", m.Name);
         cmd.Parameters.AddWithValue("$desc", m.Description);
         cmd.Parameters.AddWithValue("$l", m.Level);
         cmd.Parameters.AddWithValue("$s", m.SortOrder);
         cmd.Parameters.AddWithValue("$co", m.ConsolOperator ?? "+");
+        cmd.Parameters.AddWithValue("$f", m.Formula ?? "");
+        cmd.Parameters.AddWithValue("$tb", m.TimeBalance ?? "");
+        cmd.Parameters.AddWithValue("$sf", (object?)m.SharedFromId ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$id", m.Id);
         cmd.ExecuteNonQuery();
+        InvalidateMemberCache();
     }
 
     public Dictionary<string, Member> GetMembersByNameForDimension(long dimensionId)
@@ -441,15 +550,17 @@ SELECT last_insert_rowid();";
         cmd.CommandText = "DELETE FROM Members WHERE DimensionId = $d";
         cmd.Parameters.AddWithValue("$d", dimensionId);
         cmd.ExecuteNonQuery();
+        InvalidateMemberCache();
     }
 
-        public void DeleteMember(long memberId)
+    public void DeleteMember(long memberId)
     {
         var conn = GetConnection();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "DELETE FROM Members WHERE Id = $id";
         cmd.Parameters.AddWithValue("$id", memberId);
         cmd.ExecuteNonQuery();
+        InvalidateMemberCache();
     }
 
     #endregion
@@ -640,29 +751,47 @@ VALUES ($m, $k, $nv, $tv, $dt)";
         cmd.ExecuteNonQuery();
     }
 
+    /// <summary>True when the model has at least one fact row (not structure-empty).</summary>
+    public bool HasFactData(long modelId)
+    {
+        var conn = GetConnection();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT 1 FROM FactData WHERE ModelId = $m LIMIT 1";
+        cmd.Parameters.AddWithValue("$m", modelId);
+        return cmd.ExecuteScalar() != null;
+    }
+
     #endregion
 
     #region Settings
 
     public ModelSettings GetSettings(long modelId)
     {
+        if (_settingsCache.TryGetValue(modelId, out var cached)) return cached;
         var conn = GetConnection();
         using var cmd = conn.CreateCommand();
         cmd.CommandText =
-            "SELECT ModelId, OmitEmptyRows, OmitEmptyColumns, MemberDisplay FROM ModelSettings WHERE ModelId = $m";
+            "SELECT ModelId, OmitEmptyRows, OmitEmptyColumns, MemberDisplay, PreserveFormulas FROM ModelSettings WHERE ModelId = $m";
         cmd.Parameters.AddWithValue("$m", modelId);
         using var rdr = cmd.ExecuteReader();
+        ModelSettings s;
         if (rdr.Read())
         {
-            return new ModelSettings
+            s = new ModelSettings
             {
                 ModelId = rdr.GetInt64(0),
                 OmitEmptyRows = rdr.GetInt32(1) != 0,
                 OmitEmptyColumns = rdr.GetInt32(2) != 0,
-                MemberDisplay = rdr.GetInt32(3)
+                MemberDisplay = rdr.GetInt32(3),
+                PreserveFormulas = rdr.GetInt32(4) != 0
             };
         }
-        return new ModelSettings { ModelId = modelId };
+        else
+        {
+            s = new ModelSettings { ModelId = modelId };
+        }
+        _settingsCache[modelId] = s;
+        return s;
     }
 
     public void SaveSettings(ModelSettings s)
@@ -670,16 +799,58 @@ VALUES ($m, $k, $nv, $tv, $dt)";
         var conn = GetConnection();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = @"
-INSERT INTO ModelSettings (ModelId, OmitEmptyRows, OmitEmptyColumns, MemberDisplay)
-VALUES ($m, $r, $c, $d)
+INSERT INTO ModelSettings (ModelId, OmitEmptyRows, OmitEmptyColumns, MemberDisplay, PreserveFormulas)
+VALUES ($m, $r, $c, $d, $p)
 ON CONFLICT(ModelId) DO UPDATE SET
     OmitEmptyRows = excluded.OmitEmptyRows,
     OmitEmptyColumns = excluded.OmitEmptyColumns,
-    MemberDisplay = excluded.MemberDisplay";
+    MemberDisplay = excluded.MemberDisplay,
+    PreserveFormulas = excluded.PreserveFormulas";
         cmd.Parameters.AddWithValue("$m", s.ModelId);
         cmd.Parameters.AddWithValue("$r", s.OmitEmptyRows ? 1 : 0);
         cmd.Parameters.AddWithValue("$c", s.OmitEmptyColumns ? 1 : 0);
         cmd.Parameters.AddWithValue("$d", s.MemberDisplay);
+        cmd.Parameters.AddWithValue("$p", s.PreserveFormulas ? 1 : 0);
+        cmd.ExecuteNonQuery();
+        InvalidateSettingsCache(s.ModelId);
+    }
+
+    #endregion
+
+    #region ModelViews (persisted OLAP layout)
+
+    public void SaveModelView(long modelId, string viewPayload)
+    {
+        var conn = GetConnection();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = @"
+INSERT INTO ModelViews (ModelId, ViewPayload, UpdatedUtc)
+VALUES ($m, $p, $u)
+ON CONFLICT(ModelId) DO UPDATE SET
+    ViewPayload = excluded.ViewPayload,
+    UpdatedUtc = excluded.UpdatedUtc";
+        cmd.Parameters.AddWithValue("$m", modelId);
+        cmd.Parameters.AddWithValue("$p", viewPayload ?? "");
+        cmd.Parameters.AddWithValue("$u", DateTime.UtcNow.ToString("o"));
+        cmd.ExecuteNonQuery();
+    }
+
+    public string? LoadModelView(long modelId)
+    {
+        var conn = GetConnection();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT ViewPayload FROM ModelViews WHERE ModelId = $m";
+        cmd.Parameters.AddWithValue("$m", modelId);
+        var result = cmd.ExecuteScalar()?.ToString();
+        return string.IsNullOrWhiteSpace(result) ? null : result;
+    }
+
+    public void DeleteModelView(long modelId)
+    {
+        var conn = GetConnection();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM ModelViews WHERE ModelId = $m";
+        cmd.Parameters.AddWithValue("$m", modelId);
         cmd.ExecuteNonQuery();
     }
 

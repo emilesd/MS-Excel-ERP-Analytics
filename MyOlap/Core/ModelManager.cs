@@ -108,15 +108,40 @@ public class ModelManager
     }
 
     /// <summary>
+    /// Alert text when a new dimension is requested on a model that already has fact data.
+    /// </summary>
+    public const string NewDimensionRequiresClearDataMessage =
+        "New dimension requires data to be reloaded. Please clear data first and retry";
+
+    /// <summary>
+    /// True when a brand-new dimension may be added (model has no fact data and is under the 12-dim cap).
+    /// </summary>
+    public bool CanAddNewDimension(long modelId, out string? errorMessage)
+    {
+        if (_repo.HasFactData(modelId))
+        {
+            errorMessage = NewDimensionRequiresClearDataMessage;
+            return false;
+        }
+        if (_repo.GetDimensions(modelId).Count >= 12)
+        {
+            errorMessage = "Maximum of 12 dimensions reached.";
+            return false;
+        }
+        errorMessage = null;
+        return true;
+    }
+
+    /// <summary>
     /// Adds a new user-defined dimension to an existing model.
-    /// Enforces the limit of 12 dimensions total.
+    /// Allowed only when the model has no fact data; enforces the 12-dimension limit.
     /// </summary>
     public Dimension? AddDimension(long modelId, string name)
     {
-        var existing = _repo.GetDimensions(modelId);
-        if (existing.Count >= 12)
+        if (!CanAddNewDimension(modelId, out _))
             return null;
 
+        var existing = _repo.GetDimensions(modelId);
         var dim = new Dimension
         {
             ModelId = modelId,
@@ -125,6 +150,19 @@ public class ModelManager
             SortOrder = existing.Count
         };
         dim.Id = _repo.InsertDimension(dim);
+        // Default root member so the new dimension appears on POV in the default view
+        // (SelectModel only places dimensions that have at least one member).
+        var rootName = name.StartsWith("All ", StringComparison.OrdinalIgnoreCase)
+            ? name
+            : $"All {name}";
+        _repo.InsertMember(new Member
+        {
+            DimensionId = dim.Id,
+            Name = rootName,
+            Description = rootName,
+            Level = 0,
+            SortOrder = 0
+        });
         return dim;
     }
 

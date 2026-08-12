@@ -59,3 +59,12 @@ Forecast,FY26,Mar,Draft,Electronics,Asia,Sales - Goods,205000
 Forecast,FY26,Mar,Draft,Clothing,North America,Sales Indirect,82000
 Forecast,FY26,Mar,Draft,Clothing,Europe,Sales Indirect,97000
 Forecast,FY26,Mar,Draft,Clothing,Asia,Sales Indirect,72000
+Actual,FY26,Jun,Draft,Clothing,North America,Headcount,10
+Actual,FY26,Jun,Draft,Clothing,Europe,Headcount,15
+Actual,FY26,Jun,Draft,Clothing,Asia,Headcount,25
+Budget,FY26,Feb,Draft,Electronics,North America,Headcount,10
+Budget,FY26,Feb,Draft,Electronics,Europe,Headcount,14
+Budget,FY26,Feb,Draft,Electronics,Asia,Headcount,20
+Forecast,FY26,Mar,Draft,Electronics,North America,Headcount,12
+Forecast,FY26,Mar,Draft,Electronics,Europe,Headcount,14
+Forecast,FY26,Mar,Draft,Electronics,Asia,Headcount,19

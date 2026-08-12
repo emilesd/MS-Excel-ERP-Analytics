@@ -193,6 +193,14 @@ public class DataLoadForm : Form
         mapping.ValueColumnIndex = valueCol;
         mapping.ValueIsText = valueIsText;
 
+        // Every model dimension must have a mapped source column (item 6b).
+        var missingAlert = DataLoader.GetMissingDimensionAlert(_dims, mapping);
+        if (missingAlert != null)
+        {
+            MessageBox.Show(missingAlert, "MyOlap", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
         _lblStatus.Text = "Loading\u2026";
         Application.DoEvents();
 

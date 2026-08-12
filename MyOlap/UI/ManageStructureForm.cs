@@ -19,6 +19,12 @@ public class ManageStructureForm : Form
     private readonly Button _btnClose;
     private List<Dimension> _dims = new();
 
+    /// <summary>
+    /// True when dimensions/members were changed — caller should refresh the sheet
+    /// to the default view so new dimensions appear (e.g. on POV).
+    /// </summary>
+    public bool StructureChanged { get; private set; }
+
     public ManageStructureForm(long modelId)
     {
         _modelId = modelId;
@@ -86,8 +92,15 @@ public class ManageStructureForm : Form
         {
             Text = "Close", Height = 36, AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowOnly,
-            MinimumSize = new System.Drawing.Size(70, 36),
-            DialogResult = DialogResult.OK
+            MinimumSize = new System.Drawing.Size(70, 36)
+        };
+        // Explicit handler — DialogResult on a button inside FlowLayoutPanel does not
+        // reliably dismiss ShowDialog, so Close was sometimes returning Cancel and the
+        // sheet never refreshed after Add Dimension.
+        _btnClose.Click += (_, _) =>
+        {
+            DialogResult = DialogResult.OK;
+            Close();
         };
 
         buttonPanel.Controls.AddRange(new Control[] { _btnAddMember, _btnRemoveMember, _btnLoadDim, _btnExportPdf, _btnClose });
@@ -97,6 +110,13 @@ public class ManageStructureForm : Form
             lblDim, _lbDimensions, _btnAddDim,
             lblMem, _tvMembers, buttonPanel
         });
+
+        // Closing via the window X after structure edits must still refresh the sheet.
+        FormClosing += (_, e) =>
+        {
+            if (StructureChanged && DialogResult == DialogResult.Cancel)
+                DialogResult = DialogResult.OK;
+        };
 
         LoadDimensions();
     }
@@ -114,22 +134,52 @@ public class ManageStructureForm : Form
             _lbDimensions.SelectedIndex = 0;
     }
 
-    private void LoadMembers()
+    private void LoadMembers(bool preserveExpansion = false)
     {
+        var expandedIds = new HashSet<long>();
+        if (preserveExpansion)
+            CollectExpanded(_tvMembers.Nodes, expandedIds);
+
         _tvMembers.Nodes.Clear();
         if (_lbDimensions.SelectedIndex < 0) return;
         var dim = _dims[_lbDimensions.SelectedIndex];
         var roots = DimensionTree.BuildTree(dim.Id);
         foreach (var root in roots)
             _tvMembers.Nodes.Add(BuildNode(root));
-        _tvMembers.ExpandAll();
+
+        if (preserveExpansion)
+            RestoreExpanded(_tvMembers.Nodes, expandedIds);
+        else
+            _tvMembers.CollapseAll();
+    }
+
+    private static void CollectExpanded(TreeNodeCollection nodes, HashSet<long> ids)
+    {
+        foreach (TreeNode node in nodes)
+        {
+            if (node.IsExpanded && node.Tag is long id)
+                ids.Add(id);
+            CollectExpanded(node.Nodes, ids);
+        }
+    }
+
+    private static void RestoreExpanded(TreeNodeCollection nodes, HashSet<long> ids)
+    {
+        foreach (TreeNode node in nodes)
+        {
+            if (node.Tag is long id && ids.Contains(id))
+                node.Expand();
+            RestoreExpanded(node.Nodes, ids);
+        }
     }
 
     private static TreeNode BuildNode(DimensionTreeNode n)
     {
         var label = string.IsNullOrEmpty(n.Member.Description) || n.Member.Description == n.Member.Name
-            ? n.Member.Name
-            : $"{n.Member.Name} \u2013 {n.Member.Description}";
+            ? n.Member.DisplayName
+            : $"{n.Member.DisplayName} \u2013 {n.Member.Description}";
+        if (n.Member.SharedFromId != null)
+            label += " (shared)";
         var tn = new TreeNode(label) { Tag = n.Member.Id };
         foreach (var c in n.Children)
             tn.Nodes.Add(BuildNode(c));
@@ -142,14 +192,23 @@ public class ManageStructureForm : Form
         if (string.IsNullOrWhiteSpace(name)) return;
 
         var mgr = new ModelManager();
+        if (!mgr.CanAddNewDimension(_modelId, out var err))
+        {
+            MessageBox.Show(err, "MyOlap", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
         var dim = mgr.AddDimension(_modelId, name);
         if (dim == null)
         {
-            MessageBox.Show("Maximum of 12 dimensions reached.", "Limit",
+            MessageBox.Show("Could not add dimension.", "MyOlap",
                 MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
+        StructureChanged = true;
         LoadDimensions();
+        // Select the new dimension so the user sees its default root member.
+        var idx = _dims.FindIndex(d => d.Id == dim.Id);
+        if (idx >= 0) _lbDimensions.SelectedIndex = idx;
     }
 
     private void BtnAddMember_Click(object? sender, EventArgs e)
@@ -163,51 +222,99 @@ public class ManageStructureForm : Form
 
         var dlg = new Form
         {
-            AutoScaleMode = AutoScaleMode.Font,
-            
+            AutoScaleMode = AutoScaleMode.None,
             Text = "Add Member",
-            Width = 500, Height = 260,
+            Width = 780, Height = 600,
             FormBorderStyle = FormBorderStyle.FixedDialog,
             StartPosition = FormStartPosition.CenterParent,
             MaximizeBox = false, MinimizeBox = false
         };
 
-        var lblName = new Label { Text = "Name:", Left = 16, Top = 16, AutoSize = true };
-        var txtName = new TextBox { Left = 130, Top = 14, Width = 340, MaxLength = 75 };
+        const int col1 = 24, col2 = 180, rowW = 550;
+        const int row1 = 24, row2 = 64, row3 = 118, row4 = 168, row5 = 260, row6 = 340;
 
-        var lblDesc = new Label { Text = "Description:", Left = 16, Top = 52, AutoSize = true };
-        var txtDesc = new TextBox { Left = 130, Top = 50, Width = 340, MaxLength = 75 };
+        var lblName = new Label { Text = "Name:", Left = col1, Top = row1 + 4, AutoSize = true };
+        var txtName = new TextBox { Left = col2, Top = row1, Width = rowW, MaxLength = 75, Height = 28 };
 
-        var lblOp = new Label { Text = "Consol Operator:", Left = 16, Top = 88, AutoSize = true };
+        // Live hint: shown when a member with this display name already exists.
+        var lblSharedHint = new Label
+        {
+            Left = col1, Top = row2, Width = col2 + rowW - col1, Height = 34,
+            ForeColor = System.Drawing.Color.DarkBlue,
+            BackColor = System.Drawing.Color.AliceBlue,
+            Font = new System.Drawing.Font("Segoe UI", 9.5f, System.Drawing.FontStyle.Regular),
+            Text = "",
+            Visible = false,
+            BorderStyle = BorderStyle.FixedSingle
+        };
+        txtName.TextChanged += (_, _) =>
+        {
+            var typed = txtName.Text.Trim();
+            var existing = SqliteRepository.Instance.GetMembers(dim.Id)
+                .FirstOrDefault(m => m.SharedFromId == null
+                                  && m.DisplayName.Equals(typed, StringComparison.OrdinalIgnoreCase));
+            lblSharedHint.Text = existing != null ? "  → Will be created as a shared member" : "";
+            lblSharedHint.Visible = existing != null;
+        };
+
+        var lblDesc = new Label { Text = "Description:", Left = col1, Top = row3 + 4, AutoSize = true };
+        var txtDesc = new TextBox { Left = col2, Top = row3, Width = rowW, MaxLength = 75, Height = 28 };
+
+        var lblOp = new Label { Text = "Consol Operator:", Left = col1, Top = row4 + 4, AutoSize = true };
         var cbOp = new ComboBox
         {
-            Left = 130, Top = 86, Width = 100, DropDownStyle = ComboBoxStyle.DropDownList
+            Left = col2 + 73, Top = row4, Width = 220,
+            DropDownStyle = ComboBoxStyle.DropDownList, Height = 28
         };
         cbOp.Items.AddRange(new object[] { "+ (Add)", "- (Subtract)", "x (Ignore)" });
         cbOp.SelectedIndex = 0;
 
-        var btnOk = new Button { Text = "OK", Left = 260, Top = 140, Width = 100, Height = 34, DialogResult = DialogResult.OK };
-        var btnCancel = new Button { Text = "Cancel", Left = 370, Top = 140, Width = 100, Height = 34, DialogResult = DialogResult.Cancel };
-
-        dlg.Controls.AddRange(new Control[] { lblName, txtName, lblDesc, txtDesc, lblOp, cbOp, btnOk, btnCancel });
-        dlg.AcceptButton = btnOk;
-        dlg.CancelButton = btnCancel;
-
-        if (dlg.ShowDialog() != DialogResult.OK || string.IsNullOrWhiteSpace(txtName.Text)) return;
-
-        var consolOp = cbOp.SelectedIndex switch { 1 => "-", 2 => "x", _ => "+" };
-
-        SqliteRepository.Instance.InsertMember(new Member
+        var lblStatus = new Label
         {
-            DimensionId = dim.Id,
-            ParentId = parentId,
-            Name = txtName.Text.Trim(),
-            Description = txtDesc.Text.Trim(),
-            Level = parentId.HasValue ? (SqliteRepository.Instance.GetMember(parentId.Value)?.Level ?? 0) + 1 : 0,
-            SortOrder = SqliteRepository.Instance.GetMembers(dim.Id).Count,
-            ConsolOperator = consolOp
-        });
-        LoadMembers();
+            Left = col1, Top = row5, Width = col2 + rowW - col1, Height = 28,
+            ForeColor = System.Drawing.Color.DarkGreen,
+            Font = new System.Drawing.Font("Segoe UI", 9.5f, System.Drawing.FontStyle.Italic),
+            Text = ""
+        };
+
+        var btnAdd   = new Button { Text = "Add",   Left = 440, Top = row6, Width = 140, Height = 38 };
+        var btnClose = new Button { Text = "Close", Left = 596, Top = row6, Width = 140, Height = 38, DialogResult = DialogResult.Cancel };
+
+        btnAdd.Click += (_, _) =>
+        {
+            var memberName = txtName.Text.Trim();
+            if (string.IsNullOrWhiteSpace(memberName)) return;
+
+            var consolOp = cbOp.SelectedIndex switch { 1 => "-", 2 => "x", _ => "+" };
+            var existingOriginal = SqliteRepository.Instance.GetMembers(dim.Id)
+                .FirstOrDefault(m => m.SharedFromId == null
+                                  && m.DisplayName.Equals(memberName, StringComparison.OrdinalIgnoreCase));
+
+            SqliteRepository.Instance.InsertMember(new Member
+            {
+                DimensionId = dim.Id,
+                ParentId = parentId,
+                Name = memberName,
+                Description = txtDesc.Text.Trim(),
+                Level = parentId.HasValue ? (SqliteRepository.Instance.GetMember(parentId.Value)?.Level ?? 0) + 1 : 0,
+                SortOrder = SqliteRepository.Instance.GetMembers(dim.Id).Count,
+                ConsolOperator = consolOp,
+                SharedFromId = existingOriginal?.Id
+            });
+            StructureChanged = true;
+            LoadMembers(preserveExpansion: true);
+            lblStatus.Text = $"Added: {memberName}";
+            txtName.Text = "";
+            txtDesc.Text = "";
+            cbOp.SelectedIndex = 0;
+            txtName.Focus();
+        };
+
+        dlg.Controls.AddRange(new Control[] { lblName, txtName, lblSharedHint, lblDesc, txtDesc, lblOp, cbOp, lblStatus, btnAdd, btnClose });
+        dlg.AcceptButton = btnAdd;
+        dlg.CancelButton = btnClose;
+
+        dlg.ShowDialog(this);
     }
 
     private void BtnRemoveMember_Click(object? sender, EventArgs e)
@@ -218,11 +325,30 @@ public class ManageStructureForm : Form
                 MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
             if (result == DialogResult.Yes)
             {
-                var descendants = SqliteRepository.Instance.GetAllDescendants(memberId);
-                foreach (var desc in descendants)
-                    SqliteRepository.Instance.DeleteMember(desc.Id);
-                SqliteRepository.Instance.DeleteMember(memberId);
-                LoadMembers();
+                if (_lbDimensions.SelectedIndex >= 0)
+                {
+                    var dimForDel = _dims[_lbDimensions.SelectedIndex];
+                    // BFS: collect memberId + all hierarchical descendants + all shared copies of any of those (and their descendants)
+                    var idsToDelete = new List<long>();
+                    var toProcess = new Queue<long>();
+                    var processed = new HashSet<long>();
+                    toProcess.Enqueue(memberId);
+                    while (toProcess.Count > 0)
+                    {
+                        var id = toProcess.Dequeue();
+                        if (!processed.Add(id)) continue;
+                        idsToDelete.Add(id);
+                        foreach (var desc in SqliteRepository.Instance.GetAllDescendants(id))
+                            toProcess.Enqueue(desc.Id);
+                        foreach (var sc in SqliteRepository.Instance.GetMembers(dimForDel.Id).Where(m => m.SharedFromId == id))
+                            toProcess.Enqueue(sc.Id);
+                    }
+                    // Delete leaf-first (reverse BFS order) to avoid FK issues
+                    foreach (var id in Enumerable.Reverse(idsToDelete))
+                        SqliteRepository.Instance.DeleteMember(id);
+                    StructureChanged = true;
+                }
+                LoadMembers(preserveExpansion: true);
             }
             return;
         }
@@ -243,15 +369,18 @@ public class ManageStructureForm : Form
         {
             SqliteRepository.Instance.ClearDimensionMembers(dim.Id);
             SqliteRepository.Instance.DeleteDimension(dim.Id);
+            StructureChanged = true;
             LoadDimensions();
         }
     }
 
     private void BtnLoadDim_Click(object? sender, EventArgs e)
     {
-        using var form = new LoadDimensionForm(_modelId);
+        var dimId = _lbDimensions.SelectedIndex >= 0 ? _dims[_lbDimensions.SelectedIndex].Id : 0L;
+        using var form = new LoadDimensionForm(_modelId, dimId);
         if (form.ShowDialog(this) == DialogResult.OK)
         {
+            StructureChanged = true;
             LoadDimensions();
             LoadMembers();
         }
@@ -335,8 +464,8 @@ public class ManageStructureForm : Form
             var font = hasChildren ? parentFont : leafFont;
             var prefix = hasChildren ? "\u25BC " : "\u2022 ";
             var label = string.IsNullOrEmpty(node.Member.Description) || node.Member.Description == node.Member.Name
-                ? node.Member.Name
-                : $"{node.Member.Name} \u2013 {node.Member.Description}";
+                ? node.Member.DisplayName
+                : $"{node.Member.DisplayName} \u2013 {node.Member.Description}";
 
             gfx.DrawString($"{prefix}{label}", font, XBrushes.Black, new XPoint(x, y));
             y += lineHeight;

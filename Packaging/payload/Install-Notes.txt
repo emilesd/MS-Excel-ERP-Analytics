@@ -1,0 +1,106 @@
+MyOlap 1.5.0 - Excel OLAP Analytics Add-in
+GoLive Systems Ltd
+==========================================================
+
+WHAT THIS INSTALLER DOES
+----------------------------------------------------------
+1. Copies the MyOlap add-in into your own user profile at
+      %LOCALAPPDATA%\MyOlap\AddIn
+   No administrator rights are needed for this step.
+
+2. Installs the Microsoft .NET 8 Desktop Runtime (x64) if it
+   is not already on the machine. This is a Microsoft
+   component and is the only step that may ask for an
+   administrator password. It runs once; later installs and
+   upgrades skip it.
+
+3. Registers MyOlap so it loads automatically every time
+   Excel starts. No manual "File > Options > Add-ins" step is
+   required.
+
+
+REQUIREMENTS
+----------------------------------------------------------
+- Windows 10 or Windows 11 (64-bit)
+- Microsoft Excel 2016 or later (Excel 2019, 2021, or
+  Microsoft 365 all work). 64-bit Excel is recommended.
+- Internet access is NOT required: the .NET runtime is
+  bundled inside this installer.
+
+If the machine has 32-bit Excel, the installer detects it and
+installs the matching 32-bit add-in, but you must install the
+.NET 8 Desktop Runtime (x86) manually from
+https://dotnet.microsoft.com/download/dotnet/8.0
+
+
+HOW TO INSTALL
+----------------------------------------------------------
+1. Close Excel.
+2. Double-click MyOlap-Setup-1.5.0.exe.
+   Windows SmartScreen may show "Windows protected your PC"
+   because the installer is not code-signed yet. Click
+   "More info" then "Run anyway".
+3. Follow the wizard. Accept the administrator prompt if the
+   .NET runtime step appears.
+4. Start Excel. A "MyOlap" tab appears in the ribbon.
+
+
+WHERE YOUR DATA IS STORED
+----------------------------------------------------------
+All models, dimensions, and loaded data live in a single
+local SQLite file:
+
+      %LOCALAPPDATA%\MyOlap\myolap.db
+
+Nothing is sent anywhere, and no server or database software
+needs to be installed. To back up your work, copy that file.
+To move your work to another machine, copy that file into the
+same folder on the target machine (with Excel closed).
+
+Uninstalling MyOlap does NOT delete myolap.db.
+
+
+FIRST-RUN CHECK
+----------------------------------------------------------
+1. Open Excel and look for the "MyOlap" tab.
+2. Click Select Model. The model list opens (empty on a new
+   machine).
+3. Click New Model, give it a name, and click OK.
+4. Click Manage Model to add dimensions and members, then
+   Load Data to import a CSV or XLSX file.
+
+See UserGuide.md in this folder for the full feature walk-
+through.
+
+
+IF THE MYOLAP TAB DOES NOT APPEAR
+----------------------------------------------------------
+- Close Excel completely (check Task Manager for a lingering
+  EXCEL.EXE), then reopen it.
+- In Excel: File > Options > Add-ins. At the bottom set
+  "Manage: Excel Add-ins" and click Go. Make sure MyOlap is
+  ticked.
+- Also check "Manage: Disabled Items" and re-enable MyOlap if
+  Excel parked it there after an earlier crash.
+- Confirm the .NET 8 Desktop Runtime is present: open a
+  Command Prompt and run
+        dotnet --list-runtimes
+  You should see a line beginning with
+        Microsoft.WindowsDesktop.App 8.
+  If it is missing, install "Desktop Runtime 8.0" from
+  https://dotnet.microsoft.com/download/dotnet/8.0
+- Re-run the installer. It clears Excel's disabled-items list
+  and re-registers the add-in.
+
+
+HOW TO UNINSTALL
+----------------------------------------------------------
+Windows Settings > Apps > Installed apps > MyOlap 1.5.0 >
+Uninstall. This removes the add-in files and the Excel
+registration but keeps your myolap.db data file.
+
+
+SUPPORT
+----------------------------------------------------------
+GoLive Systems Ltd
+https://github.com/emilesd/MS-Excel-ERP-Analytics
